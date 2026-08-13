@@ -56,6 +56,28 @@
             </div>
         </dialog>
 
+        <dialog
+            class="product-dialog"
+            id="product-details"
+            aria-labelledby="product-details-title"
+        >
+            <div class="product-dialog__panel">
+                <header class="product-dialog__header">
+                    <button class="back-button" id="close-product-details" type="button">
+                        Voltar
+                    </button>
+                </header>
+                <div class="product-dialog__content" id="product-details-content"></div>
+                <footer class="product-dialog__footer">
+                    <button class="add-to-cart-button" id="add-to-cart" type="button" disabled>
+                        <span>Adicionar ao carrinho</span>
+                        <span aria-hidden="true">•</span>
+                        <span id="configured-total"></span>
+                    </button>
+                </footer>
+            </div>
+        </dialog>
+
         <script type="module" src="assets/js/app.js"></script>
     </body>
 </html>

@@ -91,10 +91,159 @@
                         <button class="secondary-button" id="continue-shopping" type="button">
                             Continuar escolhendo
                         </button>
-                        <button class="checkout-button" type="button" disabled>Fazer pedido</button>
+                        <button class="checkout-button" id="start-checkout" type="button" disabled>
+                            Fazer pedido
+                        </button>
                     </div>
                 </footer>
             </div>
+        </dialog>
+
+        <dialog class="checkout-dialog" id="checkout-dialog" aria-labelledby="checkout-title">
+            <form class="checkout-dialog__panel" id="checkout-form" novalidate>
+                <header class="checkout-dialog__header">
+                    <button class="back-button" id="close-checkout" type="button">Voltar</button>
+                    <h2 id="checkout-title">Finalizar pedido</h2>
+                </header>
+
+                <div class="checkout-dialog__content">
+                    <fieldset
+                        class="checkout-section fulfillment-choice"
+                        id="checkout-fulfillment-group"
+                        aria-describedby="checkout-fulfillment-error"
+                    >
+                        <legend>Como deseja receber?</legend>
+                        <div class="fulfillment-choice__options">
+                            <label class="fulfillment-option">
+                                <input type="radio" name="fulfillment" value="pickup" />
+                                <span>Retirada</span>
+                            </label>
+                            <label class="fulfillment-option">
+                                <input type="radio" name="fulfillment" value="delivery" />
+                                <span>Delivery</span>
+                            </label>
+                        </div>
+                        <p class="field-error" id="checkout-fulfillment-error"></p>
+                    </fieldset>
+
+                    <section class="checkout-section" aria-labelledby="checkout-customer-title">
+                        <h3 id="checkout-customer-title">Seus dados</h3>
+                        <div class="checkout-fields">
+                            <div class="field-group">
+                                <label for="checkout-full-name">Nome completo</label>
+                                <input
+                                    id="checkout-full-name"
+                                    name="fullName"
+                                    type="text"
+                                    maxlength="100"
+                                    autocomplete="name"
+                                    aria-describedby="checkout-full-name-error"
+                                />
+                                <p class="field-error" id="checkout-full-name-error"></p>
+                            </div>
+                            <div class="field-group">
+                                <label for="checkout-phone">Telefone</label>
+                                <input
+                                    id="checkout-phone"
+                                    name="phone"
+                                    type="tel"
+                                    inputmode="tel"
+                                    maxlength="15"
+                                    autocomplete="tel"
+                                    placeholder="(00) 12345-6789"
+                                    aria-describedby="checkout-phone-error"
+                                />
+                                <p class="field-error" id="checkout-phone-error"></p>
+                            </div>
+                        </div>
+                    </section>
+
+                    <section
+                        class="checkout-section"
+                        id="checkout-delivery-fields"
+                        aria-labelledby="checkout-delivery-title"
+                        hidden
+                    >
+                        <h3 id="checkout-delivery-title">Endereço de entrega</h3>
+                        <div class="checkout-fields checkout-fields--address">
+                            <div class="field-group field-group--wide">
+                                <label for="checkout-street">Endereço</label>
+                                <input
+                                    id="checkout-street"
+                                    name="street"
+                                    type="text"
+                                    maxlength="120"
+                                    autocomplete="street-address"
+                                    aria-describedby="checkout-street-error"
+                                />
+                                <p class="field-error" id="checkout-street-error"></p>
+                            </div>
+                            <div class="field-group">
+                                <label for="checkout-number">Número</label>
+                                <input
+                                    id="checkout-number"
+                                    name="number"
+                                    type="text"
+                                    maxlength="20"
+                                    aria-describedby="checkout-number-error"
+                                />
+                                <p class="field-error" id="checkout-number-error"></p>
+                            </div>
+                            <div class="field-group">
+                                <label for="checkout-neighborhood">Bairro</label>
+                                <input
+                                    id="checkout-neighborhood"
+                                    name="neighborhood"
+                                    type="text"
+                                    maxlength="80"
+                                    aria-describedby="checkout-neighborhood-error"
+                                />
+                                <p class="field-error" id="checkout-neighborhood-error"></p>
+                            </div>
+                            <div class="field-group field-group--wide">
+                                <label for="checkout-complement">Complemento ou referência</label>
+                                <span class="field-hint">Opcional</span>
+                                <input
+                                    id="checkout-complement"
+                                    name="complement"
+                                    type="text"
+                                    maxlength="120"
+                                    autocomplete="address-line2"
+                                />
+                            </div>
+                        </div>
+                    </section>
+
+                    <section class="checkout-section checkout-summary" aria-labelledby="checkout-summary-title">
+                        <h3 id="checkout-summary-title">Resumo do pedido</h3>
+                        <dl>
+                            <div>
+                                <dt>Itens</dt>
+                                <dd id="checkout-items"></dd>
+                            </div>
+                            <div>
+                                <dt>Subtotal dos produtos</dt>
+                                <dd id="checkout-products-total"></dd>
+                            </div>
+                            <div id="checkout-delivery-fee-row" hidden>
+                                <dt>Taxa de entrega</dt>
+                                <dd id="checkout-delivery-fee"></dd>
+                            </div>
+                            <div class="checkout-summary__total">
+                                <dt>Total</dt>
+                                <dd id="checkout-total"></dd>
+                            </div>
+                        </dl>
+                    </section>
+                </div>
+
+                <footer class="checkout-dialog__footer">
+                    <p class="checkout-status" id="checkout-status" role="status" aria-live="polite"></p>
+                    <button class="checkout-continue-button" id="checkout-continue" type="submit">
+                        Continuar
+                    </button>
+                </footer>
+            </form>
         </dialog>
 
         <p class="storage-status" id="storage-status" role="status" aria-live="polite"></p>

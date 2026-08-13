@@ -10,6 +10,12 @@ import {
     removeCartItem,
     saveCart,
 } from './cart.js';
+import {
+    buildCheckoutDetails,
+    formatPhone,
+    getCheckoutTotals,
+    validateCheckoutDetails,
+} from './checkout.js';
 import { menu } from './menu.js';
 
 const currencyFormatter = new Intl.NumberFormat('pt-BR', {
@@ -41,6 +47,36 @@ const cartBar = document.querySelector('#cart-bar');
 const cartBarUnits = document.querySelector('#cart-bar-units');
 const cartBarTotal = document.querySelector('#cart-bar-total');
 const storageStatus = document.querySelector('#storage-status');
+const startCheckoutButton = document.querySelector('#start-checkout');
+const checkoutDialog = document.querySelector('#checkout-dialog');
+const checkoutForm = document.querySelector('#checkout-form');
+const closeCheckoutButton = document.querySelector('#close-checkout');
+const checkoutDeliveryFields = document.querySelector('#checkout-delivery-fields');
+const checkoutItems = document.querySelector('#checkout-items');
+const checkoutProductsTotal = document.querySelector('#checkout-products-total');
+const checkoutDeliveryFeeRow = document.querySelector('#checkout-delivery-fee-row');
+const checkoutDeliveryFee = document.querySelector('#checkout-delivery-fee');
+const checkoutTotal = document.querySelector('#checkout-total');
+const checkoutContinueButton = document.querySelector('#checkout-continue');
+const checkoutStatus = document.querySelector('#checkout-status');
+
+const checkoutInputs = {
+    fullName: document.querySelector('#checkout-full-name'),
+    phone: document.querySelector('#checkout-phone'),
+    street: document.querySelector('#checkout-street'),
+    number: document.querySelector('#checkout-number'),
+    neighborhood: document.querySelector('#checkout-neighborhood'),
+    complement: document.querySelector('#checkout-complement'),
+};
+
+const checkoutErrorElements = {
+    fulfillmentType: document.querySelector('#checkout-fulfillment-error'),
+    fullName: document.querySelector('#checkout-full-name-error'),
+    phone: document.querySelector('#checkout-phone-error'),
+    street: document.querySelector('#checkout-street-error'),
+    number: document.querySelector('#checkout-number-error'),
+    neighborhood: document.querySelector('#checkout-neighborhood-error'),
+};
 
 let cart = loadCart();
 let currentConfiguration = null;
@@ -48,6 +84,17 @@ let productCardThatOpenedDetails = null;
 let menuScrollPosition = 0;
 let cartReturnFocus = null;
 let suppressCartFocusRestore = false;
+let checkoutHasBeenSubmitted = false;
+let validCheckoutDetails = null;
+const checkoutState = {
+    fulfillmentType: null,
+    fullName: '',
+    phone: '',
+    street: '',
+    number: '',
+    neighborhood: '',
+    complement: '',
+};
 
 function formatCurrency(cents) {
     return currencyFormatter.format(cents / 100);
@@ -640,11 +687,143 @@ function findMenuProduct(productId) {
     return category && product ? { category, product } : null;
 }
 
+function renderCheckoutSummary() {
+    const totalUnits = getCartTotalUnits(cart);
+    const productsTotal = getCartTotal(cart);
+    const totals = getCheckoutTotals(
+        checkoutState.fulfillmentType,
+        productsTotal,
+        business.deliveryFee,
+    );
+
+    checkoutItems.textContent = `${totalUnits} ${totalUnits === 1 ? 'item' : 'itens'}`;
+    checkoutProductsTotal.textContent = formatCurrency(productsTotal);
+    checkoutDeliveryFeeRow.hidden = checkoutState.fulfillmentType !== 'delivery';
+    checkoutDeliveryFee.textContent =
+        totals.deliveryFee === 0 ? 'Grátis' : formatCurrency(totals.deliveryFee);
+    checkoutTotal.textContent = formatCurrency(totals.total);
+}
+
+function updateCheckoutFulfillment() {
+    const isDelivery = checkoutState.fulfillmentType === 'delivery';
+    checkoutDeliveryFields.hidden = !isDelivery;
+    renderCheckoutSummary();
+}
+
+function renderCheckoutErrors(errors = {}) {
+    const fulfillmentGroup = document.querySelector('#checkout-fulfillment-group');
+    const fulfillmentInputs = checkoutForm.querySelectorAll('[name="fulfillment"]');
+
+    Object.entries(checkoutErrorElements).forEach(([field, element]) => {
+        element.textContent = errors[field] ?? '';
+
+        if (field === 'fulfillmentType') {
+            const isInvalid = Boolean(errors[field]);
+            fulfillmentGroup.setAttribute('aria-invalid', String(isInvalid));
+            fulfillmentInputs.forEach((input) =>
+                input.setAttribute('aria-invalid', String(isInvalid)),
+            );
+            return;
+        }
+
+        checkoutInputs[field].setAttribute('aria-invalid', String(Boolean(errors[field])));
+    });
+}
+
+function validateAndRenderCheckout() {
+    const validation = validateCheckoutDetails(checkoutState);
+    renderCheckoutErrors(validation.errors);
+    return validation;
+}
+
+function updateCheckoutAfterInput() {
+    validCheckoutDetails = null;
+    checkoutStatus.textContent = '';
+
+    if (checkoutHasBeenSubmitted) {
+        validateAndRenderCheckout();
+    }
+}
+
+function renderCheckout() {
+    checkoutForm.querySelectorAll('[name="fulfillment"]').forEach((input) => {
+        input.checked = input.value === checkoutState.fulfillmentType;
+    });
+
+    Object.entries(checkoutInputs).forEach(([field, input]) => {
+        input.value = checkoutState[field];
+    });
+
+    checkoutHasBeenSubmitted = false;
+    validCheckoutDetails = null;
+    checkoutStatus.textContent = '';
+    renderCheckoutErrors();
+    updateCheckoutFulfillment();
+    checkoutContinueButton.disabled = cart.length === 0;
+}
+
+function openCheckout() {
+    if (cart.length === 0) {
+        return;
+    }
+
+    suppressCartFocusRestore = true;
+    cartDialog.close();
+    renderCheckout();
+    checkoutDialog.showModal();
+    document.body.classList.add('dialog-open');
+    closeCheckoutButton.focus();
+}
+
+function closeCheckout() {
+    checkoutDialog.close();
+}
+
+function focusFirstCheckoutError(errors) {
+    const order = ['fulfillmentType', 'fullName', 'phone', 'street', 'number', 'neighborhood'];
+    const firstInvalidField = order.find((field) => errors[field]);
+
+    if (firstInvalidField === 'fulfillmentType') {
+        checkoutForm.querySelector('[name="fulfillment"]')?.focus();
+        return;
+    }
+
+    checkoutInputs[firstInvalidField]?.focus();
+}
+
+function handleCheckoutSubmit(event) {
+    event.preventDefault();
+
+    if (cart.length === 0) {
+        checkoutContinueButton.disabled = true;
+        closeCheckout();
+        return;
+    }
+
+    checkoutHasBeenSubmitted = true;
+    const validation = validateAndRenderCheckout();
+
+    if (!validation.isValid) {
+        validCheckoutDetails = null;
+        checkoutStatus.textContent = '';
+        focusFirstCheckoutError(validation.errors);
+        return;
+    }
+
+    validCheckoutDetails = buildCheckoutDetails(
+        checkoutState,
+        getCartTotal(cart),
+        business.deliveryFee,
+    );
+    checkoutStatus.textContent = 'Dados preenchidos corretamente.';
+}
+
 function renderCartBar() {
     const totalUnits = getCartTotalUnits(cart);
     const isVisible = totalUnits > 0;
 
     cartBar.hidden = !isVisible;
+    startCheckoutButton.disabled = !isVisible;
     document.body.classList.toggle('cart-bar-visible', isVisible);
 
     if (!isVisible) {
@@ -897,6 +1076,28 @@ productActionButton.addEventListener('click', handleProductAction);
 openCartButton.addEventListener('click', openCart);
 closeCartButton.addEventListener('click', closeCart);
 continueShoppingButton.addEventListener('click', closeCart);
+startCheckoutButton.addEventListener('click', openCheckout);
+closeCheckoutButton.addEventListener('click', closeCheckout);
+checkoutForm.addEventListener('submit', handleCheckoutSubmit);
+
+checkoutForm.querySelectorAll('[name="fulfillment"]').forEach((input) => {
+    input.addEventListener('change', () => {
+        checkoutState.fulfillmentType = input.value;
+        updateCheckoutFulfillment();
+        updateCheckoutAfterInput();
+    });
+});
+
+Object.entries(checkoutInputs).forEach(([field, input]) => {
+    input.addEventListener('input', () => {
+        if (field === 'phone') {
+            input.value = formatPhone(input.value);
+        }
+
+        checkoutState[field] = input.value;
+        updateCheckoutAfterInput();
+    });
+});
 
 productDialog.addEventListener('click', (event) => {
     if (event.target === productDialog) {
@@ -961,6 +1162,26 @@ cartDialog.addEventListener('close', () => {
     } else {
         document.querySelector('.product-card')?.focus({ preventScroll: true });
     }
+});
+
+checkoutDialog.addEventListener('click', (event) => {
+    if (event.target === checkoutDialog) {
+        closeCheckout();
+    }
+});
+
+checkoutDialog.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape') {
+        event.preventDefault();
+        closeCheckout();
+    }
+});
+
+checkoutDialog.addEventListener('close', () => {
+    renderCart();
+    cartDialog.showModal();
+    document.body.classList.add('dialog-open');
+    startCheckoutButton.focus();
 });
 
 renderMenu();

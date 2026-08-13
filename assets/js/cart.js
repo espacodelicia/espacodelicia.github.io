@@ -1,3 +1,6 @@
+const CART_STORAGE_KEY = 'espacoDeliciaCart';
+const CART_EXPIRATION_MS = 2 * 60 * 60 * 1000;
+
 function assertNonEmptyString(value, fieldName) {
     if (typeof value !== 'string' || value.trim() === '') {
         throw new TypeError(`${fieldName} must be a non-empty string.`);
@@ -196,6 +199,97 @@ function validateAndCloneCart(cart) {
     });
 }
 
+function hasOwnProperty(object, property) {
+    return Object.prototype.hasOwnProperty.call(object, property);
+}
+
+function restorePersistedCart(cart) {
+    if (!Array.isArray(cart)) {
+        throw new TypeError('Persisted cart must be an array.');
+    }
+
+    const requiredFields = [
+        'id',
+        'productId',
+        'productName',
+        'basePrice',
+        'addons',
+        'notes',
+        'quantity',
+        'unitPrice',
+    ];
+    const lineIds = new Set();
+    const restoredCart = cart.map((item, index) => {
+        if (!item || typeof item !== 'object' || Array.isArray(item)) {
+            throw new TypeError(`Persisted cart[${index}] must be an object.`);
+        }
+
+        if (requiredFields.some((field) => !hasOwnProperty(item, field))) {
+            throw new TypeError(`Persisted cart[${index}] is missing a required field.`);
+        }
+
+        assertNonEmptyString(item.id, `Persisted cart[${index}].id`);
+
+        if (lineIds.has(item.id)) {
+            throw new TypeError(`Duplicate persisted cart line id: ${item.id}.`);
+        }
+
+        lineIds.add(item.id);
+
+        if (typeof item.notes !== 'string') {
+            throw new TypeError(`Persisted cart[${index}].notes must be a string.`);
+        }
+
+        if (!Array.isArray(item.addons)) {
+            throw new TypeError(`Persisted cart[${index}].addons must be an array.`);
+        }
+
+        item.addons.forEach((addon, addonIndex) => {
+            if (!addon || typeof addon !== 'object' || Array.isArray(addon)) {
+                throw new TypeError(
+                    `Persisted cart[${index}].addons[${addonIndex}] must be an object.`,
+                );
+            }
+
+            const addonFields = ['addonId', 'name', 'unitPrice', 'quantity'];
+
+            if (addonFields.some((field) => !hasOwnProperty(addon, field))) {
+                throw new TypeError(
+                    `Persisted cart[${index}].addons[${addonIndex}] is missing a required field.`,
+                );
+            }
+
+            assertPositiveInteger(
+                addon.quantity,
+                `Persisted cart[${index}].addons[${addonIndex}].quantity`,
+            );
+        });
+
+        const normalized = normalizeConfiguration(item);
+
+        return {
+            id: item.id,
+            ...normalized,
+        };
+    });
+
+    assertNoEquivalentLines(restoredCart, 'Persisted cart');
+
+    getCartTotal(restoredCart);
+    getCartTotalUnits(restoredCart);
+
+    return restoredCart;
+}
+
+function removePersistedCart() {
+    try {
+        globalThis.localStorage.removeItem(CART_STORAGE_KEY);
+        return true;
+    } catch {
+        return false;
+    }
+}
+
 function haveEquivalentConfigurations(first, second) {
     return (
         first.productId === second.productId &&
@@ -207,6 +301,16 @@ function haveEquivalentConfigurations(first, second) {
                 addon.quantity === second.addons[index].quantity,
         )
     );
+}
+
+function assertNoEquivalentLines(cart, sourceName) {
+    cart.forEach((item, index) => {
+        for (let otherIndex = index + 1; otherIndex < cart.length; otherIndex += 1) {
+            if (haveEquivalentConfigurations(item, cart[otherIndex])) {
+                throw new TypeError(`${sourceName} contains equivalent duplicate lines.`);
+            }
+        }
+    });
 }
 
 function addOneUnit(item) {
@@ -363,4 +467,90 @@ export function getCartTotalUnits(cart) {
 
         return total + item.quantity;
     }, 0);
+}
+
+export function saveCart(cart) {
+    const validatedCart = validateAndCloneCart(cart);
+    assertNoEquivalentLines(validatedCart, 'Cart');
+    getCartTotal(validatedCart);
+    getCartTotalUnits(validatedCart);
+
+    if (validatedCart.length === 0) {
+        return removePersistedCart();
+    }
+
+    const persistedState = JSON.stringify({
+        cart: validatedCart,
+        lastUpdated: Date.now(),
+    });
+
+    try {
+        globalThis.localStorage.setItem(CART_STORAGE_KEY, persistedState);
+        return true;
+    } catch {
+        return false;
+    }
+}
+
+export function loadCart() {
+    let serializedState;
+
+    try {
+        serializedState = globalThis.localStorage.getItem(CART_STORAGE_KEY);
+    } catch {
+        return [];
+    }
+
+    if (serializedState === null) {
+        return [];
+    }
+
+    let persistedState;
+
+    try {
+        persistedState = JSON.parse(serializedState);
+    } catch {
+        removePersistedCart();
+        return [];
+    }
+
+    try {
+        if (
+            !persistedState ||
+            typeof persistedState !== 'object' ||
+            Array.isArray(persistedState) ||
+            !hasOwnProperty(persistedState, 'cart') ||
+            !hasOwnProperty(persistedState, 'lastUpdated')
+        ) {
+            throw new TypeError('Persisted cart state has an invalid structure.');
+        }
+
+        const now = Date.now();
+
+        if (
+            !Number.isSafeInteger(persistedState.lastUpdated) ||
+            persistedState.lastUpdated < 0 ||
+            persistedState.lastUpdated > now
+        ) {
+            throw new TypeError('Persisted cart timestamp is invalid.');
+        }
+
+        if (now - persistedState.lastUpdated >= CART_EXPIRATION_MS) {
+            removePersistedCart();
+            return [];
+        }
+
+        return restorePersistedCart(persistedState.cart);
+    } catch (error) {
+        if (!(error instanceof TypeError) && !(error instanceof RangeError)) {
+            throw error;
+        }
+
+        removePersistedCart();
+        return [];
+    }
+}
+
+export function clearCartStorage() {
+    return removePersistedCart();
 }

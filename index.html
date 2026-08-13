@@ -7,7 +7,55 @@
         <link rel="stylesheet" href="assets/css/styles.css" />
     </head>
     <body>
-        <main></main>
+        <header class="brand-header">
+            <div class="brand-header__content">
+                <img
+                    class="brand-header__logo"
+                    src="assets/images/logo/logo-espaco-delicia.webp"
+                    alt="Logo da lanchonete"
+                    width="160"
+                    height="160"
+                />
+                <div class="brand-header__text">
+                    <p class="brand-header__eyebrow">Cardápio digital</p>
+                    <h1 id="business-name"></h1>
+                    <button class="info-button" id="open-business-info" type="button">
+                        Informações sobre a lanchonete
+                    </button>
+                </div>
+            </div>
+        </header>
+
+        <nav class="category-nav" aria-label="Categorias do cardápio">
+            <div class="category-nav__list" id="category-list"></div>
+        </nav>
+
+        <main class="menu" id="menu-content"></main>
+
+        <dialog
+            class="business-dialog"
+            id="business-info"
+            aria-labelledby="business-info-title"
+        >
+            <div class="business-dialog__panel">
+                <div class="business-dialog__header">
+                    <div>
+                        <p class="business-dialog__eyebrow">Sobre nós</p>
+                        <h2 id="business-info-title"></h2>
+                    </div>
+                    <button
+                        class="close-button"
+                        id="close-business-info"
+                        type="button"
+                        aria-label="Fechar informações da lanchonete"
+                    >
+                        Fechar
+                    </button>
+                </div>
+                <div class="business-dialog__content" id="business-info-content"></div>
+            </div>
+        </dialog>
+
         <script type="module" src="assets/js/app.js"></script>
     </body>
 </html>

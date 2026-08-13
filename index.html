@@ -69,14 +69,43 @@
                 </header>
                 <div class="product-dialog__content" id="product-details-content"></div>
                 <footer class="product-dialog__footer">
-                    <button class="add-to-cart-button" id="add-to-cart" type="button" disabled>
-                        <span>Adicionar ao carrinho</span>
+                    <button class="add-to-cart-button" id="add-to-cart" type="button">
+                        <span id="product-action-label">Adicionar ao carrinho</span>
                         <span aria-hidden="true">•</span>
                         <span id="configured-total"></span>
                     </button>
                 </footer>
             </div>
         </dialog>
+
+        <dialog class="cart-dialog" id="cart-dialog" aria-labelledby="cart-title">
+            <div class="cart-dialog__panel">
+                <header class="cart-dialog__header">
+                    <button class="back-button" id="close-cart" type="button">Voltar</button>
+                    <h2 id="cart-title">Carrinho</h2>
+                </header>
+                <div class="cart-dialog__content" id="cart-content"></div>
+                <footer class="cart-dialog__footer">
+                    <div class="cart-summary" id="cart-summary"></div>
+                    <div class="cart-dialog__actions">
+                        <button class="secondary-button" id="continue-shopping" type="button">
+                            Continuar escolhendo
+                        </button>
+                        <button class="checkout-button" type="button" disabled>Fazer pedido</button>
+                    </div>
+                </footer>
+            </div>
+        </dialog>
+
+        <p class="storage-status" id="storage-status" role="status" aria-live="polite"></p>
+
+        <aside class="cart-bar" id="cart-bar" hidden>
+            <button class="cart-bar__button" id="open-cart" type="button">
+                <span id="cart-bar-units"></span>
+                <strong id="cart-bar-total"></strong>
+                <span class="cart-bar__action">Ver carrinho</span>
+            </button>
+        </aside>
 
         <script type="module" src="assets/js/app.js"></script>
     </body>

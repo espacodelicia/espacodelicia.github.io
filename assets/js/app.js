@@ -1,4 +1,15 @@
 import { business } from './business.js';
+import {
+    addCartItem,
+    decrementCartItem,
+    editCartItem,
+    getCartTotal,
+    getCartTotalUnits,
+    incrementCartItem,
+    loadCart,
+    removeCartItem,
+    saveCart,
+} from './cart.js';
 import { menu } from './menu.js';
 
 const currencyFormatter = new Intl.NumberFormat('pt-BR', {
@@ -18,10 +29,25 @@ const productDialog = document.querySelector('#product-details');
 const productDetailsContent = document.querySelector('#product-details-content');
 const closeProductDetailsButton = document.querySelector('#close-product-details');
 const configuredTotal = document.querySelector('#configured-total');
+const productActionButton = document.querySelector('#add-to-cart');
+const productActionLabel = document.querySelector('#product-action-label');
+const cartDialog = document.querySelector('#cart-dialog');
+const cartContent = document.querySelector('#cart-content');
+const cartSummary = document.querySelector('#cart-summary');
+const openCartButton = document.querySelector('#open-cart');
+const closeCartButton = document.querySelector('#close-cart');
+const continueShoppingButton = document.querySelector('#continue-shopping');
+const cartBar = document.querySelector('#cart-bar');
+const cartBarUnits = document.querySelector('#cart-bar-units');
+const cartBarTotal = document.querySelector('#cart-bar-total');
+const storageStatus = document.querySelector('#storage-status');
 
+let cart = loadCart();
 let currentConfiguration = null;
 let productCardThatOpenedDetails = null;
 let menuScrollPosition = 0;
+let cartReturnFocus = null;
+let suppressCartFocusRestore = false;
 
 function formatCurrency(cents) {
     return currencyFormatter.format(cents / 100);
@@ -244,11 +270,20 @@ function openProductDetails(categoryId, productId, opener) {
     }
 
     currentConfiguration = {
+        mode: 'add',
         category,
         product,
+        productName: product.name,
+        basePrice: product.price,
+        availableAddons: category.addons.map((addon) => ({
+            id: addon.id,
+            name: addon.name,
+            price: addon.price,
+        })),
         addonQuantities: Object.fromEntries(category.addons.map((addon) => [addon.id, 0])),
         notes: '',
         productQuantity: 1,
+        editingLineId: null,
     };
     productCardThatOpenedDetails = opener;
     menuScrollPosition = window.scrollY;
@@ -259,8 +294,61 @@ function openProductDetails(categoryId, productId, opener) {
     closeProductDetailsButton.focus();
 }
 
+function openCartItemEdit(lineId) {
+    const line = cart.find((item) => item.id === lineId);
+    const menuProduct = line ? findMenuProduct(line.productId) : null;
+
+    if (!line || !menuProduct) {
+        return;
+    }
+
+    const { category, product } = menuProduct;
+
+    const snapshotAddons = new Map(line.addons.map((addon) => [addon.addonId, addon]));
+    const availableAddons = category.addons.map((addon) => ({
+        id: addon.id,
+        name: snapshotAddons.get(addon.id)?.name ?? addon.name,
+        price: snapshotAddons.get(addon.id)?.unitPrice ?? addon.price,
+    }));
+
+    line.addons.forEach((addon) => {
+        if (!availableAddons.some((item) => item.id === addon.addonId)) {
+            availableAddons.push({
+                id: addon.addonId,
+                name: addon.name,
+                price: addon.unitPrice,
+            });
+        }
+    });
+
+    currentConfiguration = {
+        mode: 'edit',
+        category,
+        product,
+        productName: line.productName,
+        basePrice: line.basePrice,
+        availableAddons,
+        addonQuantities: Object.fromEntries(
+            availableAddons.map((addon) => [
+                addon.id,
+                snapshotAddons.get(addon.id)?.quantity ?? 0,
+            ]),
+        ),
+        notes: line.notes,
+        productQuantity: 1,
+        editingLineId: line.id,
+    };
+
+    suppressCartFocusRestore = true;
+    cartDialog.close();
+    renderProductDetails();
+    productDialog.showModal();
+    document.body.classList.add('dialog-open');
+    closeProductDetailsButton.focus();
+}
+
 function renderProductDetails() {
-    const { category, product } = currentConfiguration;
+    const { product } = currentConfiguration;
     productDetailsContent.textContent = '';
 
     const productOverview = document.createElement('div');
@@ -297,17 +385,23 @@ function renderProductDetails() {
 
     const basePrice = document.createElement('p');
     basePrice.className = 'product-detail__base-price';
-    basePrice.textContent = `Preço base: ${formatCurrency(product.price)}`;
+    basePrice.textContent = `Preço base: ${formatCurrency(currentConfiguration.basePrice)}`;
 
     introduction.append(name, description, basePrice);
     productOverview.append(media, introduction);
     productDetailsContent.append(productOverview);
 
-    if (category.addons.length > 0) {
-        productDetailsContent.append(createAddonsSection(category.addons));
+    if (currentConfiguration.availableAddons.length > 0) {
+        productDetailsContent.append(
+            createAddonsSection(currentConfiguration.availableAddons),
+        );
     }
 
-    productDetailsContent.append(createNotesField(), createProductQuantitySection());
+    productDetailsContent.append(createNotesField());
+
+    if (currentConfiguration.mode === 'add') {
+        productDetailsContent.append(createProductQuantitySection());
+    }
 
     const summary = document.createElement('section');
     summary.className = 'configuration-summary';
@@ -321,6 +415,8 @@ function renderProductDetails() {
 
     summary.append(unitLabel, unitPrice);
     productDetailsContent.append(summary);
+    productActionLabel.textContent =
+        currentConfiguration.mode === 'edit' ? 'Salvar alteração' : 'Adicionar ao carrinho';
     updateConfiguredPrice();
 }
 
@@ -358,7 +454,7 @@ function createAddonsSection(addons) {
             information,
             createQuantityControl({
                 label: addon.name,
-                initialQuantity: 0,
+                initialQuantity: currentConfiguration.addonQuantities[addon.id] ?? 0,
                 minimum: 0,
                 onChange: (quantity) => {
                     currentConfiguration.addonQuantities[addon.id] = quantity;
@@ -391,6 +487,7 @@ function createNotesField() {
     textarea.rows = 3;
     textarea.maxLength = 300;
     textarea.placeholder = 'Ex.: sem cebola, molho à parte...';
+    textarea.value = currentConfiguration.notes;
     textarea.addEventListener('input', () => {
         currentConfiguration.notes = textarea.value;
     });
@@ -474,12 +571,12 @@ function createQuantityControl({ label, initialQuantity, minimum, onChange }) {
 }
 
 function calculateConfiguredPrices() {
-    const addonsTotal = currentConfiguration.category.addons.reduce(
+    const addonsTotal = currentConfiguration.availableAddons.reduce(
         (total, addon) =>
             total + addon.price * currentConfiguration.addonQuantities[addon.id],
         0,
     );
-    const unitPrice = currentConfiguration.product.price + addonsTotal;
+    const unitPrice = currentConfiguration.basePrice + addonsTotal;
 
     return {
         unitPrice,
@@ -491,6 +588,273 @@ function updateConfiguredPrice() {
     const prices = calculateConfiguredPrices();
     document.querySelector('#configured-unit-price').textContent = formatCurrency(prices.unitPrice);
     configuredTotal.textContent = formatCurrency(prices.total);
+}
+
+function getCurrentCartConfiguration() {
+    return {
+        productId: currentConfiguration.product.id,
+        productName: currentConfiguration.productName,
+        basePrice: currentConfiguration.basePrice,
+        addons: currentConfiguration.availableAddons
+            .filter((addon) => currentConfiguration.addonQuantities[addon.id] > 0)
+            .map((addon) => ({
+                addonId: addon.id,
+                name: addon.name,
+                unitPrice: addon.price,
+                quantity: currentConfiguration.addonQuantities[addon.id],
+            })),
+        notes: currentConfiguration.notes,
+        quantity: currentConfiguration.productQuantity,
+    };
+}
+
+function hasCartChanged(currentCart, nextCart) {
+    // cart.js returns canonical plain-data snapshots. This exact comparison only
+    // prevents no-op persistence; equivalence and mutation rules remain in the engine.
+    return JSON.stringify(currentCart) !== JSON.stringify(nextCart);
+}
+
+function persistCart(nextCart) {
+    const shouldSave = hasCartChanged(cart, nextCart);
+    cart = nextCart;
+
+    if (!shouldSave) {
+        renderCartBar();
+        return false;
+    }
+
+    const wasSaved = saveCart(cart);
+    storageStatus.textContent = wasSaved
+        ? ''
+        : 'Não foi possível salvar o carrinho neste dispositivo.';
+    renderCartBar();
+    return wasSaved;
+}
+
+function findMenuProduct(productId) {
+    const category = menu.find((item) =>
+        item.products.some((product) => product.id === productId),
+    );
+    const product = category?.products.find((item) => item.id === productId);
+
+    return category && product ? { category, product } : null;
+}
+
+function renderCartBar() {
+    const totalUnits = getCartTotalUnits(cart);
+    const isVisible = totalUnits > 0;
+
+    cartBar.hidden = !isVisible;
+    document.body.classList.toggle('cart-bar-visible', isVisible);
+
+    if (!isVisible) {
+        return;
+    }
+
+    const itemLabel = totalUnits === 1 ? 'item' : 'itens';
+    const total = formatCurrency(getCartTotal(cart));
+    cartBarUnits.textContent = `${totalUnits} ${itemLabel}`;
+    cartBarTotal.textContent = total;
+    openCartButton.setAttribute(
+        'aria-label',
+        `Abrir carrinho com ${totalUnits} ${itemLabel}, total ${total}`,
+    );
+}
+
+function createCartLine(line, lineIndex) {
+    const article = document.createElement('article');
+    article.className = 'cart-line';
+    article.dataset.lineId = line.id;
+
+    const heading = document.createElement('h3');
+    heading.className = 'cart-line__name';
+    heading.textContent = line.productName;
+    article.append(heading);
+
+    if (line.addons.length > 0) {
+        const addons = document.createElement('div');
+        addons.className = 'cart-line__addons';
+
+        const label = document.createElement('span');
+        label.textContent = 'Adicionais:';
+
+        const list = document.createElement('ul');
+        line.addons.forEach((addon) => {
+            const item = document.createElement('li');
+            item.textContent = `${addon.name} ×${addon.quantity}`;
+            list.append(item);
+        });
+
+        addons.append(label, list);
+        article.append(addons);
+    }
+
+    if (line.notes) {
+        const notes = document.createElement('p');
+        notes.className = 'cart-line__notes';
+        notes.textContent = `Obs.: ${line.notes}`;
+        article.append(notes);
+    }
+
+    const pricing = document.createElement('div');
+    pricing.className = 'cart-line__pricing';
+
+    const unitPrice = document.createElement('span');
+    unitPrice.textContent = `${formatCurrency(line.unitPrice)} cada`;
+
+    const subtotal = document.createElement('strong');
+    subtotal.textContent = formatCurrency(line.unitPrice * line.quantity);
+
+    pricing.append(unitPrice, subtotal);
+
+    const menuProduct = findMenuProduct(line.productId);
+
+    if (!menuProduct) {
+        const availability = document.createElement('p');
+        availability.className = 'cart-line__availability';
+        availability.id = `cart-line-availability-${lineIndex}`;
+        availability.textContent = 'Este item não está mais disponível para edição.';
+        article.append(availability);
+    }
+
+    const controls = document.createElement('div');
+    controls.className = 'cart-line__controls';
+
+    const quantityControl = document.createElement('div');
+    quantityControl.className = 'quantity-control';
+
+    const decrease = document.createElement('button');
+    decrease.className = 'quantity-control__button';
+    decrease.type = 'button';
+    decrease.textContent = '−';
+    decrease.disabled = line.quantity === 1;
+    decrease.dataset.cartAction = 'decrease';
+    decrease.setAttribute('aria-label', `Remover uma unidade de ${line.productName}`);
+    decrease.addEventListener('click', () => {
+        if (line.quantity === 1) {
+            return;
+        }
+
+        persistCart(decrementCartItem(cart, line.id));
+        renderCart(line.id, 'decrease');
+    });
+
+    const quantity = document.createElement('span');
+    quantity.className = 'quantity-control__value';
+    quantity.textContent = String(line.quantity);
+
+    const increase = document.createElement('button');
+    increase.className = 'quantity-control__button';
+    increase.type = 'button';
+    increase.textContent = '+';
+    increase.dataset.cartAction = 'increase';
+    increase.setAttribute('aria-label', `Adicionar uma unidade de ${line.productName}`);
+    increase.addEventListener('click', () => {
+        persistCart(incrementCartItem(cart, line.id));
+        renderCart(line.id, 'increase');
+    });
+
+    quantityControl.append(decrease, quantity, increase);
+
+    const actions = document.createElement('div');
+    actions.className = 'cart-line__actions';
+
+    const edit = document.createElement('button');
+    edit.className = 'text-button';
+    edit.type = 'button';
+    edit.textContent = 'Editar';
+    edit.setAttribute('aria-label', `Editar ${line.productName}`);
+    edit.disabled = !menuProduct;
+
+    if (menuProduct) {
+        edit.addEventListener('click', () => openCartItemEdit(line.id));
+    } else {
+        edit.setAttribute('aria-describedby', `cart-line-availability-${lineIndex}`);
+    }
+
+    const remove = document.createElement('button');
+    remove.className = 'text-button text-button--danger';
+    remove.type = 'button';
+    remove.textContent = 'Remover';
+    remove.setAttribute('aria-label', `Remover ${line.productName} do carrinho`);
+    remove.addEventListener('click', () => {
+        persistCart(removeCartItem(cart, line.id));
+        const nextLine = cart[Math.min(lineIndex, cart.length - 1)];
+        renderCart(nextLine?.id ?? null, nextLine ? 'edit' : 'empty');
+    });
+
+    actions.append(edit, remove);
+    controls.append(quantityControl, actions);
+    article.append(pricing, controls);
+    return article;
+}
+
+function renderCart(focusLineId = null, focusAction = null) {
+    cartContent.textContent = '';
+
+    if (cart.length === 0) {
+        const empty = document.createElement('div');
+        empty.className = 'cart-empty';
+
+        const emptyText = document.createElement('p');
+        emptyText.textContent = 'Seu carrinho está vazio.';
+        empty.append(emptyText);
+        cartContent.append(empty);
+    } else {
+        const list = document.createElement('div');
+        list.className = 'cart-list';
+        cart.forEach((line, index) => list.append(createCartLine(line, index)));
+        cartContent.append(list);
+    }
+
+    const totalUnits = getCartTotalUnits(cart);
+    const itemLabel = totalUnits === 1 ? 'item' : 'itens';
+    cartSummary.textContent = `${totalUnits} ${itemLabel} • Total: ${formatCurrency(
+        getCartTotal(cart),
+    )}`;
+
+    if (!cartDialog.open || !focusAction) {
+        return;
+    }
+
+    if (focusAction === 'empty') {
+        closeCartButton.focus();
+        return;
+    }
+
+    const line = cartContent.querySelector(`[data-line-id="${CSS.escape(focusLineId)}"]`);
+    const selector =
+        focusAction === 'edit'
+            ? 'button[aria-label^="Editar"]'
+            : `button[data-cart-action="${focusAction}"]`;
+    line?.querySelector(selector)?.focus();
+}
+
+function openCart() {
+    cartReturnFocus = document.activeElement;
+    renderCart();
+    cartDialog.showModal();
+    document.body.classList.add('dialog-open');
+    closeCartButton.focus();
+}
+
+function closeCart() {
+    cartDialog.close();
+}
+
+function handleProductAction() {
+    const configuration = getCurrentCartConfiguration();
+
+    if (currentConfiguration.mode === 'edit') {
+        persistCart(
+            editCartItem(cart, currentConfiguration.editingLineId, configuration),
+        );
+        renderCart();
+    } else {
+        persistCart(addCartItem(cart, configuration));
+    }
+
+    closeProductDetails();
 }
 
 function closeProductDetails() {
@@ -529,6 +893,10 @@ businessDialog.addEventListener('keydown', (event) => {
 });
 
 closeProductDetailsButton.addEventListener('click', closeProductDetails);
+productActionButton.addEventListener('click', handleProductAction);
+openCartButton.addEventListener('click', openCart);
+closeCartButton.addEventListener('click', closeCart);
+continueShoppingButton.addEventListener('click', closeCart);
 
 productDialog.addEventListener('click', (event) => {
     if (event.target === productDialog) {
@@ -544,13 +912,58 @@ productDialog.addEventListener('keydown', (event) => {
 });
 
 productDialog.addEventListener('close', () => {
+    const shouldReturnToCart = currentConfiguration?.mode === 'edit';
+    currentConfiguration = null;
+    productDetailsContent.textContent = '';
+
+    if (shouldReturnToCart) {
+        renderCart();
+        cartDialog.showModal();
+        document.body.classList.add('dialog-open');
+        closeCartButton.focus();
+        return;
+    }
+
     document.body.classList.remove('dialog-open');
     window.scrollTo({ top: menuScrollPosition, behavior: 'auto' });
     productCardThatOpenedDetails?.focus({ preventScroll: true });
-    currentConfiguration = null;
-    productDetailsContent.textContent = '';
+});
+
+cartDialog.addEventListener('click', (event) => {
+    if (event.target === cartDialog) {
+        closeCart();
+    }
+});
+
+cartDialog.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape') {
+        event.preventDefault();
+        closeCart();
+    }
+});
+
+cartDialog.addEventListener('close', () => {
+    if (suppressCartFocusRestore) {
+        suppressCartFocusRestore = false;
+        return;
+    }
+
+    document.body.classList.remove('dialog-open');
+
+    if (!cartBar.hidden) {
+        openCartButton.focus();
+    } else if (
+        cartReturnFocus instanceof HTMLElement &&
+        cartReturnFocus.isConnected &&
+        cartReturnFocus !== openCartButton
+    ) {
+        cartReturnFocus.focus({ preventScroll: true });
+    } else {
+        document.querySelector('.product-card')?.focus({ preventScroll: true });
+    }
 });
 
 renderMenu();
 renderBusinessInfo();
 observeMenuSections();
+renderCartBar();

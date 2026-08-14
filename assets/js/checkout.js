@@ -1,12 +1,23 @@
 const VALID_FULFILLMENT_TYPES = new Set(['pickup', 'delivery']);
 const VALID_PAYMENT_METHODS = new Set(['pix', 'card', 'cash']);
+const FIELD_LIMITS = {
+    fullName: 100,
+    street: 120,
+    number: 20,
+    neighborhood: 80,
+    complement: 120,
+};
 
 function normalizePhone(value) {
-    return String(value ?? '').replace(/\D/g, '').slice(0, 11);
+    return String(value ?? '').replace(/\D/g, '');
 }
 
 function normalizeText(value) {
     return String(value ?? '').trim();
+}
+
+function containsControlCharacters(value) {
+    return typeof value !== 'string' || /[\u0000-\u001f\u007f]/.test(value);
 }
 
 function assertMoney(value, label) {
@@ -62,25 +73,59 @@ export function validateCheckoutDetails(details, productsTotal, deliveryFee) {
         errors.fulfillmentType = 'Escolha entre Retirada e Delivery.';
     }
 
-    if (!normalizeText(details?.fullName)) {
+    const fullName = normalizeText(details?.fullName);
+
+    if (!fullName) {
         errors.fullName = 'Informe seu nome.';
+    } else if (containsControlCharacters(details?.fullName)) {
+        errors.fullName = 'Informe um nome válido.';
+    } else if (fullName.length > FIELD_LIMITS.fullName) {
+        errors.fullName = 'O nome deve ter no máximo 100 caracteres.';
     }
 
-    if (normalizePhone(details?.phone).length !== 11) {
+    if (
+        typeof details?.phone !== 'string' ||
+        !/^[\d\s()-]*$/.test(details.phone) ||
+        normalizePhone(details.phone).length !== 11
+    ) {
         errors.phone = 'Informe um telefone válido.';
     }
 
     if (fulfillmentType === 'delivery') {
-        if (!normalizeText(details?.street)) {
+        const street = normalizeText(details?.street);
+        const number = normalizeText(details?.number);
+        const neighborhood = normalizeText(details?.neighborhood);
+        const complementValue = details?.complement ?? '';
+        const complement = normalizeText(complementValue);
+
+        if (!street) {
             errors.street = 'Informe o endereço.';
+        } else if (containsControlCharacters(details?.street)) {
+            errors.street = 'Informe um endereço válido.';
+        } else if (street.length > FIELD_LIMITS.street) {
+            errors.street = 'O endereço deve ter no máximo 120 caracteres.';
         }
 
-        if (!normalizeText(details?.number)) {
+        if (!number) {
             errors.number = 'Informe o número.';
+        } else if (containsControlCharacters(details?.number)) {
+            errors.number = 'Informe um número válido.';
+        } else if (number.length > FIELD_LIMITS.number) {
+            errors.number = 'O número deve ter no máximo 20 caracteres.';
         }
 
-        if (!normalizeText(details?.neighborhood)) {
+        if (!neighborhood) {
             errors.neighborhood = 'Informe o bairro.';
+        } else if (containsControlCharacters(details?.neighborhood)) {
+            errors.neighborhood = 'Informe um bairro válido.';
+        } else if (neighborhood.length > FIELD_LIMITS.neighborhood) {
+            errors.neighborhood = 'O bairro deve ter no máximo 80 caracteres.';
+        }
+
+        if (containsControlCharacters(complementValue)) {
+            errors.complement = 'Informe um complemento válido.';
+        } else if (complement.length > FIELD_LIMITS.complement) {
+            errors.complement = 'O complemento deve ter no máximo 120 caracteres.';
         }
     }
 

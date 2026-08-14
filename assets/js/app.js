@@ -94,6 +94,7 @@ const checkoutErrorElements = {
     street: document.querySelector('#checkout-street-error'),
     number: document.querySelector('#checkout-number-error'),
     neighborhood: document.querySelector('#checkout-neighborhood-error'),
+    complement: document.querySelector('#checkout-complement-error'),
     paymentMethod: document.querySelector('#checkout-payment-error'),
     needsChange: document.querySelector('#checkout-needs-change-error'),
     changeFor: document.querySelector('#checkout-change-for-error'),
@@ -856,6 +857,7 @@ function focusFirstCheckoutError(errors) {
         'street',
         'number',
         'neighborhood',
+        'complement',
         'paymentMethod',
         'needsChange',
         'changeFor',
@@ -1319,6 +1321,8 @@ function resetInterfaceAfterOrderDiscard() {
     renderCart();
     renderCartBar();
     document.body.classList.remove('dialog-open');
+    isFinalizingOrder = false;
+    backToCheckoutButton.disabled = false;
 }
 
 function handleAlreadySentOrder() {

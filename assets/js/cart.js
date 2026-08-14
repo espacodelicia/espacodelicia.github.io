@@ -19,6 +19,14 @@ function assertPositiveInteger(value, fieldName) {
     }
 }
 
+function assertDenseArray(value, fieldName) {
+    for (let index = 0; index < value.length; index += 1) {
+        if (!Object.prototype.hasOwnProperty.call(value, index)) {
+            throw new TypeError(`${fieldName} must not contain empty slots.`);
+        }
+    }
+}
+
 function normalizeNotes(notes) {
     if (notes === undefined || notes === null) {
         return '';
@@ -36,6 +44,8 @@ function normalizeAddons(addons = []) {
         throw new TypeError('addons must be an array.');
     }
 
+    assertDenseArray(addons, 'addons');
+
     const selectedAddons = [];
     const selectedAddonIds = new Set();
 
@@ -48,11 +58,13 @@ function normalizeAddons(addons = []) {
         assertNonEmptyString(addon.name, `addons[${index}].name`);
         assertNonNegativeInteger(addon.unitPrice, `addons[${index}].unitPrice`);
 
-        if (!Number.isSafeInteger(addon.quantity)) {
-            throw new TypeError(`addons[${index}].quantity must be an integer.`);
+        if (!Number.isSafeInteger(addon.quantity) || addon.quantity < 0) {
+            throw new TypeError(
+                `addons[${index}].quantity must be a non-negative integer.`,
+            );
         }
 
-        if (addon.quantity <= 0) {
+        if (addon.quantity === 0) {
             return;
         }
 
@@ -157,6 +169,8 @@ function validateAndCloneCart(cart) {
         throw new TypeError('cart must be an array.');
     }
 
+    assertDenseArray(cart, 'cart');
+
     const lineIds = new Set();
 
     return cart.map((item, index) => {
@@ -208,6 +222,8 @@ function restorePersistedCart(cart) {
         throw new TypeError('Persisted cart must be an array.');
     }
 
+    assertDenseArray(cart, 'Persisted cart');
+
     const requiredFields = [
         'id',
         'productId',
@@ -243,6 +259,8 @@ function restorePersistedCart(cart) {
         if (!Array.isArray(item.addons)) {
             throw new TypeError(`Persisted cart[${index}].addons must be an array.`);
         }
+
+        assertDenseArray(item.addons, `Persisted cart[${index}].addons`);
 
         item.addons.forEach((addon, addonIndex) => {
             if (!addon || typeof addon !== 'object' || Array.isArray(addon)) {

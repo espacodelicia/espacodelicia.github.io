@@ -42,8 +42,13 @@ button {
 }
 
 button:focus-visible {
-    outline: 3px solid var(--color-gold);
+    outline: 3px solid var(--color-brown);
     outline-offset: 3px;
+}
+
+.info-button:focus-visible,
+.close-button:focus-visible {
+    outline-color: var(--color-beige);
 }
 
 .brand-header {
@@ -222,7 +227,7 @@ button:focus-visible {
 }
 
 .product-card:focus-visible {
-    outline: 3px solid var(--color-gold);
+    outline: 3px solid var(--color-brown);
     outline-offset: 3px;
 }
 
@@ -596,7 +601,7 @@ button:focus-visible {
 }
 
 .product-notes textarea:focus-visible {
-    outline: 3px solid var(--color-gold);
+    outline: 3px solid var(--color-brown);
     outline-offset: 2px;
 }
 
@@ -1037,7 +1042,7 @@ button:focus-visible {
 
 .fulfillment-option:has(input:focus-visible),
 .checkout-choice__option:has(input:focus-visible) {
-    outline: 3px solid var(--color-gold);
+    outline: 3px solid var(--color-brown);
     outline-offset: 2px;
 }
 
@@ -1089,7 +1094,7 @@ button:focus-visible {
 }
 
 .field-group input:focus-visible {
-    outline: 3px solid var(--color-gold);
+    outline: 3px solid var(--color-brown);
     outline-offset: 2px;
 }
 

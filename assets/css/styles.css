@@ -929,7 +929,8 @@ button:focus-visible {
     cursor: not-allowed;
 }
 
-.checkout-dialog {
+.checkout-dialog,
+.order-review-dialog {
     width: 100%;
     max-width: none;
     height: 100%;
@@ -941,11 +942,13 @@ button:focus-visible {
     border: 0;
 }
 
-.checkout-dialog::backdrop {
+.checkout-dialog::backdrop,
+.order-review-dialog::backdrop {
     background: rgba(40, 25, 17, 0.72);
 }
 
-.checkout-dialog__panel {
+.checkout-dialog__panel,
+.order-review-dialog__panel {
     display: grid;
     grid-template-rows: auto minmax(0, 1fr) auto;
     height: 100dvh;
@@ -953,7 +956,8 @@ button:focus-visible {
     background: var(--color-cream);
 }
 
-.checkout-dialog__header {
+.checkout-dialog__header,
+.order-review-dialog__header {
     display: flex;
     align-items: center;
     gap: 20px;
@@ -962,14 +966,16 @@ button:focus-visible {
     border-bottom: 1px solid var(--color-border);
 }
 
-.checkout-dialog__header h2 {
+.checkout-dialog__header h2,
+.order-review-dialog__header h2 {
     margin: 0;
     color: var(--color-brown-dark);
     font-family: Georgia, "Times New Roman", serif;
     font-size: 1.55rem;
 }
 
-.checkout-dialog__content {
+.checkout-dialog__content,
+.order-review-dialog__content {
     padding: 18px 16px 32px;
     overflow-x: hidden;
     overflow-y: auto;
@@ -1154,7 +1160,8 @@ button:focus-visible {
     font-size: 1.08rem;
 }
 
-.checkout-dialog__footer {
+.checkout-dialog__footer,
+.order-review-dialog__footer {
     padding: 10px 16px calc(12px + env(safe-area-inset-bottom));
     background: rgba(252, 248, 243, 0.98);
     border-top: 1px solid var(--color-border);
@@ -1181,6 +1188,173 @@ button:focus-visible {
 }
 
 .checkout-continue-button:disabled {
+    opacity: 0.58;
+    cursor: not-allowed;
+}
+
+.order-review-notice {
+    padding: 16px;
+    background: #f5e9db;
+    border: 1px solid #d8c7b7;
+    border-left: 4px solid var(--color-gold);
+    border-radius: 14px;
+}
+
+.order-review-notice h3 {
+    margin: 0 0 10px;
+    color: var(--color-brown-dark);
+    font-size: 1.08rem;
+}
+
+.order-review-notice p {
+    margin: 6px 0 0;
+    line-height: 1.5;
+}
+
+.order-review-notice p:last-child {
+    font-weight: 750;
+}
+
+.order-review-introduction {
+    margin: 18px 0 0;
+    color: var(--color-muted);
+}
+
+.order-review-section {
+    min-width: 0;
+    padding: 22px 0;
+}
+
+.order-review-section + .order-review-section {
+    border-top: 1px solid var(--color-border);
+}
+
+.order-review-section h3 {
+    margin: 0 0 14px;
+    color: var(--color-brown-dark);
+    font-size: 1.05rem;
+}
+
+.order-review-section__description {
+    margin: -7px 0 14px;
+    color: var(--color-muted);
+    font-size: 0.88rem;
+}
+
+.order-review-details {
+    display: grid;
+    gap: 10px;
+    margin: 0;
+}
+
+.order-review-details > div {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 16px;
+}
+
+.order-review-details dt,
+.order-review-details dd {
+    min-width: 0;
+    margin: 0;
+}
+
+.order-review-details dt {
+    color: var(--color-muted);
+}
+
+.order-review-details dd {
+    color: var(--color-brown-dark);
+    font-weight: 750;
+    text-align: right;
+    overflow-wrap: anywhere;
+}
+
+.order-review-details__total {
+    margin-top: 4px;
+    padding-top: 12px;
+    border-top: 1px solid var(--color-border);
+    font-size: 1.12rem;
+}
+
+.order-review-items {
+    display: grid;
+    gap: 12px;
+}
+
+.order-review-item {
+    min-width: 0;
+    padding: 14px;
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: 12px;
+}
+
+.order-review-item h4 {
+    margin: 0 0 9px;
+    color: var(--color-brown-dark);
+    overflow-wrap: anywhere;
+}
+
+.order-review-item__addons,
+.order-review-item__notes {
+    color: var(--color-muted);
+    font-size: 0.88rem;
+    line-height: 1.45;
+}
+
+.order-review-item__addons span {
+    font-weight: 750;
+}
+
+.order-review-item__addons ul {
+    margin: 5px 0 0;
+    padding-left: 20px;
+}
+
+.order-review-item__notes {
+    margin: 9px 0 0;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+}
+
+.order-review-item__pricing {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 14px;
+    margin-top: 12px;
+    padding-top: 10px;
+    border-top: 1px dashed var(--color-border);
+}
+
+.order-review-item__pricing span {
+    color: var(--color-muted);
+    font-size: 0.82rem;
+}
+
+.order-review-item__pricing strong {
+    color: var(--color-brown-dark);
+}
+
+.order-review-dialog__actions {
+    display: grid;
+    gap: 10px;
+}
+
+.order-review-whatsapp-button {
+    min-height: 50px;
+    padding: 10px 14px;
+    color: var(--color-surface);
+    background: #237a4b;
+    border: 0;
+    border-radius: 12px;
+    font: inherit;
+    font-weight: 800;
+}
+
+.order-review-whatsapp-button:disabled {
     opacity: 0.58;
     cursor: not-allowed;
 }
@@ -1321,7 +1495,8 @@ button:focus-visible {
         margin-left: auto;
     }
 
-    .checkout-dialog {
+    .checkout-dialog,
+    .order-review-dialog {
         width: min(92vw, 760px);
         height: auto;
         max-height: min(92vh, 820px);
@@ -1331,18 +1506,22 @@ button:focus-visible {
         box-shadow: 0 24px 80px rgba(40, 25, 17, 0.32);
     }
 
-    .checkout-dialog__panel {
+    .checkout-dialog__panel,
+    .order-review-dialog__panel {
         height: min(92vh, 820px);
         max-height: min(92vh, 820px);
     }
 
     .checkout-dialog__header,
-    .checkout-dialog__footer {
+    .checkout-dialog__footer,
+    .order-review-dialog__header,
+    .order-review-dialog__footer {
         padding-right: 28px;
         padding-left: 28px;
     }
 
-    .checkout-dialog__content {
+    .checkout-dialog__content,
+    .order-review-dialog__content {
         padding: 22px 28px 34px;
     }
 
@@ -1360,6 +1539,12 @@ button:focus-visible {
 
     .checkout-continue-button {
         max-width: 520px;
+        margin: 0 auto;
+    }
+
+    .order-review-dialog__actions {
+        grid-template-columns: minmax(150px, 0.55fr) minmax(0, 1fr);
+        width: min(100%, 580px);
         margin: 0 auto;
     }
 }

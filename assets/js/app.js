@@ -62,6 +62,10 @@ const checkoutStatus = document.querySelector('#checkout-status');
 const checkoutPaymentGroup = document.querySelector('#checkout-payment-group');
 const checkoutChangeChoice = document.querySelector('#checkout-change-choice');
 const checkoutChangeField = document.querySelector('#checkout-change-field');
+const orderReviewDialog = document.querySelector('#order-review-dialog');
+const orderReviewContent = document.querySelector('#order-review-content');
+const orderReviewSummary = document.querySelector('#order-review-summary');
+const backToCheckoutButton = document.querySelector('#back-to-checkout');
 
 const checkoutInputs = {
     fullName: document.querySelector('#checkout-full-name'),
@@ -91,6 +95,7 @@ let productCardThatOpenedDetails = null;
 let menuScrollPosition = 0;
 let cartReturnFocus = null;
 let suppressCartFocusRestore = false;
+let suppressCheckoutReturnToCart = false;
 let checkoutHasBeenSubmitted = false;
 let checkoutData = null;
 const checkoutState = {
@@ -853,6 +858,234 @@ function focusFirstCheckoutError(errors) {
     checkoutInputs[firstInvalidField]?.focus();
 }
 
+function createOrderReviewSection(title) {
+    const section = document.createElement('section');
+    section.className = 'order-review-section';
+
+    const heading = document.createElement('h3');
+    heading.textContent = title;
+    section.append(heading);
+
+    return section;
+}
+
+function createOrderReviewDetails(entries) {
+    const list = document.createElement('dl');
+    list.className = 'order-review-details';
+
+    entries.forEach(({ label, value, emphasis = false }) => {
+        const row = document.createElement('div');
+        const term = document.createElement('dt');
+        const description = document.createElement('dd');
+
+        term.textContent = label;
+        description.textContent = value;
+        row.classList.toggle('order-review-details__total', emphasis);
+        row.append(term, description);
+        list.append(row);
+    });
+
+    return list;
+}
+
+function renderOrderReviewCustomer(fragment) {
+    const section = createOrderReviewSection('Cliente');
+    section.append(
+        createOrderReviewDetails([
+            { label: 'Nome', value: checkoutData.customer.fullName },
+            { label: 'Telefone', value: formatPhone(checkoutData.customer.phone) },
+        ]),
+    );
+    fragment.append(section);
+}
+
+function renderOrderReviewFulfillment(fragment) {
+    const section = createOrderReviewSection('Recebimento');
+    const entries = [
+        {
+            label: 'Forma de recebimento',
+            value: checkoutData.fulfillmentType === 'delivery' ? 'Delivery' : 'Retirada',
+        },
+    ];
+
+    if (checkoutData.delivery) {
+        entries.push(
+            {
+                label: 'Endereço',
+                value: `${checkoutData.delivery.street}, ${checkoutData.delivery.number}`,
+            },
+            { label: 'Bairro', value: checkoutData.delivery.neighborhood },
+        );
+
+        if (checkoutData.delivery.complement) {
+            entries.push({
+                label: 'Complemento ou referência',
+                value: checkoutData.delivery.complement,
+            });
+        }
+    }
+
+    section.append(createOrderReviewDetails(entries));
+    fragment.append(section);
+}
+
+function createOrderReviewItem(line) {
+    const article = document.createElement('article');
+    article.className = 'order-review-item';
+
+    const heading = document.createElement('h4');
+    heading.textContent = `${line.quantity}× ${line.productName}`;
+    article.append(heading);
+
+    if (line.addons.length > 0) {
+        const addons = document.createElement('div');
+        addons.className = 'order-review-item__addons';
+
+        const label = document.createElement('span');
+        label.textContent = 'Adicionais:';
+
+        const list = document.createElement('ul');
+        line.addons.forEach((addon) => {
+            const item = document.createElement('li');
+            item.textContent = `${addon.name} ×${addon.quantity}`;
+            list.append(item);
+        });
+
+        addons.append(label, list);
+        article.append(addons);
+    }
+
+    if (line.notes) {
+        const notes = document.createElement('p');
+        notes.className = 'order-review-item__notes';
+        notes.textContent = `Obs.: ${line.notes}`;
+        article.append(notes);
+    }
+
+    const pricing = document.createElement('div');
+    pricing.className = 'order-review-item__pricing';
+
+    const unitPrice = document.createElement('span');
+    unitPrice.textContent = `${formatCurrency(line.unitPrice)} cada`;
+
+    const subtotal = document.createElement('strong');
+    subtotal.textContent = formatCurrency(line.unitPrice * line.quantity);
+
+    pricing.append(unitPrice, subtotal);
+    article.append(pricing);
+    return article;
+}
+
+function renderOrderReviewItems(fragment) {
+    const totalUnits = getCartTotalUnits(cart);
+    const section = createOrderReviewSection('Itens');
+    const count = document.createElement('p');
+    count.className = 'order-review-section__description';
+    count.textContent = `${totalUnits} ${totalUnits === 1 ? 'item' : 'itens'}`;
+
+    const list = document.createElement('div');
+    list.className = 'order-review-items';
+    cart.forEach((line) => list.append(createOrderReviewItem(line)));
+
+    section.append(count, list);
+    fragment.append(section);
+}
+
+function renderOrderReviewPayment(fragment) {
+    const section = createOrderReviewSection('Pagamento');
+    const paymentLabels = {
+        pix: 'Pix',
+        card: 'Cartão',
+        cash: 'Dinheiro',
+    };
+    const entries = [
+        {
+            label: 'Forma de pagamento',
+            value: paymentLabels[checkoutData.payment.method],
+        },
+    ];
+
+    if (checkoutData.payment.method === 'cash') {
+        if (checkoutData.payment.needsChange) {
+            entries.push(
+                {
+                    label: 'Troco para',
+                    value: formatCurrency(checkoutData.payment.changeFor),
+                },
+                {
+                    label: 'Troco',
+                    value: formatCurrency(checkoutData.payment.changeAmount),
+                },
+            );
+        } else {
+            entries.push({ label: 'Troco', value: 'Sem necessidade de troco' });
+        }
+    }
+
+    section.append(createOrderReviewDetails(entries));
+    fragment.append(section);
+}
+
+function renderOrderReviewTotals(fragment) {
+    const section = createOrderReviewSection('Resumo');
+    const entries = [
+        {
+            label: 'Subtotal dos produtos',
+            value: formatCurrency(checkoutData.productsTotal),
+        },
+    ];
+
+    if (checkoutData.fulfillmentType === 'delivery') {
+        entries.push({
+            label: 'Taxa de entrega',
+            value:
+                checkoutData.deliveryFee === 0
+                    ? 'Grátis'
+                    : formatCurrency(checkoutData.deliveryFee),
+        });
+    }
+
+    entries.push({
+        label: 'Total',
+        value: formatCurrency(checkoutData.total),
+        emphasis: true,
+    });
+
+    section.append(createOrderReviewDetails(entries));
+    fragment.append(section);
+}
+
+function renderOrderReview() {
+    const fragment = document.createDocumentFragment();
+    orderReviewSummary.textContent = '';
+
+    renderOrderReviewCustomer(fragment);
+    renderOrderReviewFulfillment(fragment);
+    renderOrderReviewItems(fragment);
+    renderOrderReviewPayment(fragment);
+    renderOrderReviewTotals(fragment);
+
+    orderReviewSummary.append(fragment);
+}
+
+function openOrderReview() {
+    if (getCartTotalUnits(cart) === 0 || !checkoutData) {
+        return;
+    }
+
+    renderOrderReview();
+    suppressCheckoutReturnToCart = true;
+    checkoutDialog.close();
+    orderReviewDialog.showModal();
+    orderReviewContent.scrollTo({ top: 0, behavior: 'auto' });
+    document.body.classList.add('dialog-open');
+    backToCheckoutButton.focus();
+}
+
+function closeOrderReview() {
+    orderReviewDialog.close();
+}
+
 function handleCheckoutSubmit(event) {
     event.preventDefault();
 
@@ -877,7 +1110,8 @@ function handleCheckoutSubmit(event) {
         getCartTotal(cart),
         business.deliveryFee,
     );
-    checkoutStatus.textContent = 'Dados do pedido preenchidos corretamente.';
+    checkoutStatus.textContent = '';
+    openOrderReview();
 }
 
 function renderCartBar() {
@@ -1141,6 +1375,7 @@ continueShoppingButton.addEventListener('click', closeCart);
 startCheckoutButton.addEventListener('click', openCheckout);
 closeCheckoutButton.addEventListener('click', closeCheckout);
 checkoutForm.addEventListener('submit', handleCheckoutSubmit);
+backToCheckoutButton.addEventListener('click', closeOrderReview);
 
 checkoutForm.querySelectorAll('[name="fulfillment"]').forEach((input) => {
     input.addEventListener('change', () => {
@@ -1256,10 +1491,34 @@ checkoutDialog.addEventListener('keydown', (event) => {
 });
 
 checkoutDialog.addEventListener('close', () => {
+    if (suppressCheckoutReturnToCart) {
+        suppressCheckoutReturnToCart = false;
+        return;
+    }
+
     renderCart();
     cartDialog.showModal();
     document.body.classList.add('dialog-open');
     startCheckoutButton.focus();
+});
+
+orderReviewDialog.addEventListener('click', (event) => {
+    if (event.target === orderReviewDialog) {
+        closeOrderReview();
+    }
+});
+
+orderReviewDialog.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape') {
+        event.preventDefault();
+        closeOrderReview();
+    }
+});
+
+orderReviewDialog.addEventListener('close', () => {
+    checkoutDialog.showModal();
+    document.body.classList.add('dialog-open');
+    checkoutContinueButton.focus();
 });
 
 renderMenu();

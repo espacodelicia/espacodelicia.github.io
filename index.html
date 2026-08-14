@@ -311,6 +311,57 @@
             </form>
         </dialog>
 
+        <dialog
+            class="order-review-dialog"
+            id="order-review-dialog"
+            aria-labelledby="order-review-title"
+        >
+            <div class="order-review-dialog__panel">
+                <header class="order-review-dialog__header">
+                    <h2 id="order-review-title">Confirmar pedido</h2>
+                </header>
+
+                <div class="order-review-dialog__content" id="order-review-content">
+                    <section
+                        class="order-review-notice"
+                        aria-labelledby="order-review-notice-title"
+                    >
+                        <h3 id="order-review-notice-title">
+                            Seu pedido ainda não foi enviado.
+                        </h3>
+                        <p>Os pedidos da Espaço Delícia são recebidos somente pelo WhatsApp.</p>
+                        <p>O pedido será confirmado apenas depois que você enviar a mensagem no WhatsApp e respondermos.</p>
+                    </section>
+
+                    <p class="order-review-introduction">
+                        Confira os dados abaixo antes de continuar.
+                    </p>
+
+                    <div id="order-review-summary"></div>
+                </div>
+
+                <footer class="order-review-dialog__footer">
+                    <div class="order-review-dialog__actions">
+                        <button
+                            class="secondary-button"
+                            id="back-to-checkout"
+                            type="button"
+                        >
+                            Voltar
+                        </button>
+                        <button
+                            class="order-review-whatsapp-button"
+                            id="continue-to-whatsapp"
+                            type="button"
+                            disabled
+                        >
+                            Continuar para o WhatsApp
+                        </button>
+                    </div>
+                </footer>
+            </div>
+        </dialog>
+
         <p class="storage-status" id="storage-status" role="status" aria-live="polite"></p>
 
         <aside class="cart-bar" id="cart-bar" hidden>

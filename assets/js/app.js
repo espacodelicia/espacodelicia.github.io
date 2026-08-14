@@ -1,6 +1,7 @@
 import { business } from './business.js';
 import {
     addCartItem,
+    clearCartStorage,
     decrementCartItem,
     editCartItem,
     getCartTotal,
@@ -110,7 +111,9 @@ let checkoutData = null;
 let isOpeningWhatsApp = false;
 let whatsappActionRestoreTimer = null;
 let whatsappHandoffStarted = false;
+let isFinalizingOrder = false;
 let shouldFocusReopenAfterWhatsApp = false;
+let suppressOrderReviewReturnToCheckout = false;
 let pendingCheckoutErrors = null;
 let pendingCheckoutStatus = '';
 const checkoutState = {
@@ -1097,11 +1100,12 @@ function setWhatsAppHandoffState(isStarted, { focusReopen = false } = {}) {
     orderReviewNotice.hidden = isStarted;
     orderReviewHandoff.hidden = !isStarted;
     continueToWhatsAppButton.hidden = isStarted;
-    continueToWhatsAppButton.disabled = isStarted || isOpeningWhatsApp;
+    continueToWhatsAppButton.disabled =
+        isStarted || isOpeningWhatsApp || isFinalizingOrder;
     reopenWhatsAppButton.hidden = !isStarted;
-    reopenWhatsAppButton.disabled = !isStarted || isOpeningWhatsApp;
+    reopenWhatsAppButton.disabled = !isStarted || isOpeningWhatsApp || isFinalizingOrder;
     alreadySentWhatsAppButton.hidden = !isStarted;
-    alreadySentWhatsAppButton.disabled = true;
+    alreadySentWhatsAppButton.disabled = !isStarted || isFinalizingOrder;
     orderReviewActions.classList.toggle(
         'order-review-dialog__actions--post-handoff',
         isStarted,
@@ -1133,6 +1137,10 @@ function openOrderReview() {
 }
 
 function closeOrderReview() {
+    if (isFinalizingOrder) {
+        return;
+    }
+
     cancelWhatsAppActionRestore();
     isOpeningWhatsApp = false;
     setWhatsAppHandoffState(false);
@@ -1150,6 +1158,11 @@ function returnToCheckoutFromInvalidReview(errors = null, status = '') {
 
 function restoreWhatsAppAction() {
     whatsappActionRestoreTimer = null;
+
+    if (isFinalizingOrder) {
+        return;
+    }
+
     isOpeningWhatsApp = false;
 
     if (orderReviewDialog.open && checkoutData) {
@@ -1181,7 +1194,7 @@ function scheduleWhatsAppActionRestore() {
 function handleOpenWhatsApp() {
     const currentWhatsAppButton = getCurrentWhatsAppButton();
 
-    if (isOpeningWhatsApp || currentWhatsAppButton.disabled) {
+    if (isFinalizingOrder || isOpeningWhatsApp || currentWhatsAppButton.disabled) {
         return;
     }
 
@@ -1254,6 +1267,99 @@ function handleOpenWhatsApp() {
         orderReviewStatus.textContent =
             'Não foi possível preparar o pedido para o WhatsApp.';
         scheduleWhatsAppActionRestore();
+    }
+}
+
+function resetCheckoutSession() {
+    checkoutState.fulfillmentType = null;
+    checkoutState.fullName = '';
+    checkoutState.phone = '';
+    checkoutState.street = '';
+    checkoutState.number = '';
+    checkoutState.neighborhood = '';
+    checkoutState.complement = '';
+    checkoutState.paymentMethod = null;
+    checkoutState.needsChange = null;
+    checkoutState.changeFor = '';
+    checkoutHasBeenSubmitted = false;
+    checkoutData = null;
+    pendingCheckoutErrors = null;
+    pendingCheckoutStatus = '';
+    renderCheckout();
+}
+
+function resetInterfaceAfterOrderDiscard() {
+    cart = [];
+    resetCheckoutSession();
+    cancelWhatsAppActionRestore();
+    isOpeningWhatsApp = false;
+    shouldFocusReopenAfterWhatsApp = false;
+    setWhatsAppHandoffState(false);
+    orderReviewStatus.textContent = '';
+    orderReviewSummary.textContent = '';
+    storageStatus.textContent = '';
+    cartReturnFocus = null;
+
+    suppressOrderReviewReturnToCheckout = true;
+
+    if (orderReviewDialog.open) {
+        orderReviewDialog.close();
+    }
+
+    if (checkoutDialog.open) {
+        suppressCheckoutReturnToCart = true;
+        checkoutDialog.close();
+    }
+
+    if (cartDialog.open) {
+        suppressCartFocusRestore = true;
+        cartDialog.close();
+    }
+
+    renderCart();
+    renderCartBar();
+    document.body.classList.remove('dialog-open');
+}
+
+function handleAlreadySentOrder() {
+    if (!whatsappHandoffStarted || isFinalizingOrder) {
+        return;
+    }
+
+    isFinalizingOrder = true;
+    backToCheckoutButton.disabled = true;
+    continueToWhatsAppButton.disabled = true;
+    reopenWhatsAppButton.disabled = true;
+    alreadySentWhatsAppButton.disabled = true;
+    orderReviewStatus.textContent = '';
+
+    let wasCleared = false;
+
+    try {
+        wasCleared = clearCartStorage();
+    } catch {
+        wasCleared = false;
+    }
+
+    if (!wasCleared) {
+        isFinalizingOrder = false;
+        cancelWhatsAppActionRestore();
+        isOpeningWhatsApp = false;
+        shouldFocusReopenAfterWhatsApp = false;
+        backToCheckoutButton.disabled = false;
+        setWhatsAppHandoffState(true);
+        orderReviewStatus.textContent =
+            'Não foi possível limpar este pedido do dispositivo. Tente novamente.';
+        alreadySentWhatsAppButton.focus({ preventScroll: true });
+        return;
+    }
+
+    resetInterfaceAfterOrderDiscard();
+
+    try {
+        window.location.reload();
+    } catch {
+        // The local state is already safely reset if reloading is unavailable.
     }
 }
 
@@ -1549,6 +1655,7 @@ checkoutForm.addEventListener('submit', handleCheckoutSubmit);
 backToCheckoutButton.addEventListener('click', closeOrderReview);
 continueToWhatsAppButton.addEventListener('click', handleOpenWhatsApp);
 reopenWhatsAppButton.addEventListener('click', handleOpenWhatsApp);
+alreadySentWhatsAppButton.addEventListener('click', handleAlreadySentOrder);
 
 checkoutForm.querySelectorAll('[name="fulfillment"]').forEach((input) => {
     input.addEventListener('change', () => {
@@ -1689,6 +1796,11 @@ orderReviewDialog.addEventListener('keydown', (event) => {
 });
 
 orderReviewDialog.addEventListener('close', () => {
+    if (suppressOrderReviewReturnToCheckout) {
+        suppressOrderReviewReturnToCheckout = false;
+        return;
+    }
+
     checkoutDialog.showModal();
     document.body.classList.add('dialog-open');
 

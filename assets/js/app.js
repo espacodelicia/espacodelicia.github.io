@@ -67,14 +67,14 @@ const checkoutChangeField = document.querySelector('#checkout-change-field');
 const orderReviewDialog = document.querySelector('#order-review-dialog');
 const orderReviewContent = document.querySelector('#order-review-content');
 const orderReviewSummary = document.querySelector('#order-review-summary');
+const orderReviewNotice = document.querySelector('#order-review-notice');
+const orderReviewHandoff = document.querySelector('#order-review-handoff');
 const backToCheckoutButton = document.querySelector('#back-to-checkout');
 const continueToWhatsAppButton = document.querySelector('#continue-to-whatsapp');
-const orderReviewFooter = document.querySelector('.order-review-dialog__footer');
-const orderReviewStatus = document.createElement('p');
-orderReviewStatus.className = 'checkout-status';
-orderReviewStatus.setAttribute('role', 'status');
-orderReviewStatus.setAttribute('aria-live', 'polite');
-orderReviewFooter.prepend(orderReviewStatus);
+const reopenWhatsAppButton = document.querySelector('#reopen-whatsapp');
+const alreadySentWhatsAppButton = document.querySelector('#already-sent-whatsapp');
+const orderReviewActions = document.querySelector('.order-review-dialog__actions');
+const orderReviewStatus = document.querySelector('#order-review-status');
 
 const checkoutInputs = {
     fullName: document.querySelector('#checkout-full-name'),
@@ -108,6 +108,9 @@ let suppressCheckoutReturnToCart = false;
 let checkoutHasBeenSubmitted = false;
 let checkoutData = null;
 let isOpeningWhatsApp = false;
+let whatsappActionRestoreTimer = null;
+let whatsappHandoffStarted = false;
+let shouldFocusReopenAfterWhatsApp = false;
 let pendingCheckoutErrors = null;
 let pendingCheckoutStatus = '';
 const checkoutState = {
@@ -790,7 +793,7 @@ function updateCheckoutAfterInput() {
     checkoutStatus.textContent = '';
 
     if (orderReviewDialog.open) {
-        continueToWhatsAppButton.disabled = true;
+        getCurrentWhatsAppButton().disabled = true;
     }
 
     if (checkoutHasBeenSubmitted) {
@@ -1084,13 +1087,40 @@ function renderOrderReview() {
     orderReviewSummary.append(fragment);
 }
 
+function getCurrentWhatsAppButton() {
+    return whatsappHandoffStarted ? reopenWhatsAppButton : continueToWhatsAppButton;
+}
+
+function setWhatsAppHandoffState(isStarted, { focusReopen = false } = {}) {
+    whatsappHandoffStarted = isStarted;
+    shouldFocusReopenAfterWhatsApp = isStarted && focusReopen;
+    orderReviewNotice.hidden = isStarted;
+    orderReviewHandoff.hidden = !isStarted;
+    continueToWhatsAppButton.hidden = isStarted;
+    continueToWhatsAppButton.disabled = isStarted || isOpeningWhatsApp;
+    reopenWhatsAppButton.hidden = !isStarted;
+    reopenWhatsAppButton.disabled = !isStarted || isOpeningWhatsApp;
+    alreadySentWhatsAppButton.hidden = !isStarted;
+    alreadySentWhatsAppButton.disabled = true;
+    orderReviewActions.classList.toggle(
+        'order-review-dialog__actions--post-handoff',
+        isStarted,
+    );
+
+    if (isStarted && focusReopen) {
+        orderReviewContent.scrollTo({ top: 0, behavior: 'auto' });
+    }
+}
+
 function openOrderReview() {
     if (getCartTotalUnits(cart) === 0 || !checkoutData) {
         return;
     }
 
+    cancelWhatsAppActionRestore();
     isOpeningWhatsApp = false;
     orderReviewStatus.textContent = '';
+    setWhatsAppHandoffState(false);
     continueToWhatsAppButton.disabled = true;
     renderOrderReview();
     suppressCheckoutReturnToCart = true;
@@ -1103,7 +1133,9 @@ function openOrderReview() {
 }
 
 function closeOrderReview() {
+    cancelWhatsAppActionRestore();
     isOpeningWhatsApp = false;
+    setWhatsAppHandoffState(false);
     continueToWhatsAppButton.disabled = true;
     orderReviewStatus.textContent = '';
     orderReviewDialog.close();
@@ -1117,24 +1149,44 @@ function returnToCheckoutFromInvalidReview(errors = null, status = '') {
 }
 
 function restoreWhatsAppAction() {
+    whatsappActionRestoreTimer = null;
     isOpeningWhatsApp = false;
 
     if (orderReviewDialog.open && checkoutData) {
-        continueToWhatsAppButton.disabled = false;
+        const currentWhatsAppButton = getCurrentWhatsAppButton();
+        currentWhatsAppButton.disabled = false;
+
+        if (whatsappHandoffStarted && shouldFocusReopenAfterWhatsApp) {
+            shouldFocusReopenAfterWhatsApp = false;
+            reopenWhatsAppButton.focus({ preventScroll: true });
+        }
+    }
+}
+
+function cancelWhatsAppActionRestore() {
+    if (whatsappActionRestoreTimer !== null) {
+        window.clearTimeout(whatsappActionRestoreTimer);
+        whatsappActionRestoreTimer = null;
     }
 }
 
 function scheduleWhatsAppActionRestore() {
-    window.setTimeout(restoreWhatsAppAction, WHATSAPP_REENTRY_DELAY_MS);
+    cancelWhatsAppActionRestore();
+    whatsappActionRestoreTimer = window.setTimeout(
+        restoreWhatsAppAction,
+        WHATSAPP_REENTRY_DELAY_MS,
+    );
 }
 
-function handleContinueToWhatsApp() {
-    if (isOpeningWhatsApp || continueToWhatsAppButton.disabled) {
+function handleOpenWhatsApp() {
+    const currentWhatsAppButton = getCurrentWhatsAppButton();
+
+    if (isOpeningWhatsApp || currentWhatsAppButton.disabled) {
         return;
     }
 
     isOpeningWhatsApp = true;
-    continueToWhatsAppButton.disabled = true;
+    currentWhatsAppButton.disabled = true;
     orderReviewStatus.textContent = '';
 
     if (cart.length === 0) {
@@ -1195,6 +1247,8 @@ function handleContinueToWhatsApp() {
             return;
         }
 
+        const isFirstHandoff = !whatsappHandoffStarted;
+        setWhatsAppHandoffState(true, { focusReopen: isFirstHandoff });
         scheduleWhatsAppActionRestore();
     } catch {
         orderReviewStatus.textContent =
@@ -1493,7 +1547,8 @@ startCheckoutButton.addEventListener('click', openCheckout);
 closeCheckoutButton.addEventListener('click', closeCheckout);
 checkoutForm.addEventListener('submit', handleCheckoutSubmit);
 backToCheckoutButton.addEventListener('click', closeOrderReview);
-continueToWhatsAppButton.addEventListener('click', handleContinueToWhatsApp);
+continueToWhatsAppButton.addEventListener('click', handleOpenWhatsApp);
+reopenWhatsAppButton.addEventListener('click', handleOpenWhatsApp);
 
 checkoutForm.querySelectorAll('[name="fulfillment"]').forEach((input) => {
     input.addEventListener('change', () => {

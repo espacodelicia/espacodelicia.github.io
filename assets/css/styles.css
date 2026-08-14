@@ -996,13 +996,19 @@ button:focus-visible {
     font-weight: 800;
 }
 
-.fulfillment-choice__options {
+.fulfillment-choice__options,
+.checkout-choice__options {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 10px;
 }
 
-.fulfillment-option {
+.checkout-choice__options--payment {
+    grid-template-columns: 1fr;
+}
+
+.fulfillment-option,
+.checkout-choice__option {
     display: flex;
     align-items: center;
     gap: 10px;
@@ -1016,18 +1022,21 @@ button:focus-visible {
     font-weight: 750;
 }
 
-.fulfillment-option:has(input:checked) {
+.fulfillment-option:has(input:checked),
+.checkout-choice__option:has(input:checked) {
     color: var(--color-brown-dark);
     background: #f5e9db;
     border-color: var(--color-brown);
 }
 
-.fulfillment-option:has(input:focus-visible) {
+.fulfillment-option:has(input:focus-visible),
+.checkout-choice__option:has(input:focus-visible) {
     outline: 3px solid var(--color-gold);
     outline-offset: 2px;
 }
 
-.fulfillment-option input {
+.fulfillment-option input,
+.checkout-choice__option input {
     width: 20px;
     height: 20px;
     margin: 0;
@@ -1079,7 +1088,8 @@ button:focus-visible {
 }
 
 .field-group input[aria-invalid="true"],
-.fulfillment-choice[aria-invalid="true"] .fulfillment-option {
+.fulfillment-choice[aria-invalid="true"] .fulfillment-option,
+.checkout-choice[aria-invalid="true"] .checkout-choice__option {
     border-color: #9b332c;
 }
 
@@ -1092,6 +1102,15 @@ button:focus-visible {
 
 #checkout-delivery-fields[hidden] {
     display: none;
+}
+
+#checkout-change-choice[hidden],
+#checkout-change-field[hidden] {
+    display: none;
+}
+
+#checkout-change-field .field-group {
+    max-width: 360px;
 }
 
 .checkout-summary dl {
@@ -1329,6 +1348,10 @@ button:focus-visible {
 
     .checkout-fields {
         grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .checkout-choice__options--payment {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
     }
 
     .field-group--wide {

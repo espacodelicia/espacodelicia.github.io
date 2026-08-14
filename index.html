@@ -235,12 +235,77 @@
                             </div>
                         </dl>
                     </section>
+
+                    <fieldset
+                        class="checkout-section checkout-choice"
+                        id="checkout-payment-group"
+                        aria-describedby="checkout-payment-error"
+                    >
+                        <legend>Forma de pagamento</legend>
+                        <div class="checkout-choice__options checkout-choice__options--payment">
+                            <label class="checkout-choice__option">
+                                <input type="radio" name="paymentMethod" value="pix" />
+                                <span>Pix</span>
+                            </label>
+                            <label class="checkout-choice__option">
+                                <input type="radio" name="paymentMethod" value="card" />
+                                <span>Cartão</span>
+                            </label>
+                            <label class="checkout-choice__option">
+                                <input type="radio" name="paymentMethod" value="cash" />
+                                <span>Dinheiro</span>
+                            </label>
+                        </div>
+                        <p class="field-error" id="checkout-payment-error"></p>
+                    </fieldset>
+
+                    <fieldset
+                        class="checkout-section checkout-choice"
+                        id="checkout-change-choice"
+                        aria-describedby="checkout-needs-change-error"
+                        hidden
+                    >
+                        <legend>Precisa de troco?</legend>
+                        <div class="checkout-choice__options">
+                            <label class="checkout-choice__option">
+                                <input type="radio" name="needsChange" value="yes" />
+                                <span>Sim</span>
+                            </label>
+                            <label class="checkout-choice__option">
+                                <input type="radio" name="needsChange" value="no" />
+                                <span>Não</span>
+                            </label>
+                        </div>
+                        <p class="field-error" id="checkout-needs-change-error"></p>
+                    </fieldset>
+
+                    <section
+                        class="checkout-section"
+                        id="checkout-change-field"
+                        aria-labelledby="checkout-change-title"
+                        hidden
+                    >
+                        <h3 id="checkout-change-title">Troco</h3>
+                        <div class="field-group">
+                            <label for="checkout-change-for">Troco para quanto?</label>
+                            <input
+                                id="checkout-change-for"
+                                name="changeFor"
+                                type="text"
+                                inputmode="decimal"
+                                maxlength="24"
+                                placeholder="R$ 50,00"
+                                aria-describedby="checkout-change-for-error"
+                            />
+                            <p class="field-error" id="checkout-change-for-error"></p>
+                        </div>
+                    </section>
                 </div>
 
                 <footer class="checkout-dialog__footer">
                     <p class="checkout-status" id="checkout-status" role="status" aria-live="polite"></p>
                     <button class="checkout-continue-button" id="checkout-continue" type="submit">
-                        Continuar
+                        Revisar pedido
                     </button>
                 </footer>
             </form>

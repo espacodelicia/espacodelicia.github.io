@@ -1,4 +1,5 @@
 const VALID_FULFILLMENT_TYPES = new Set(['pickup', 'delivery']);
+const VALID_PAYMENT_METHODS = new Set(['pix', 'card', 'cash']);
 
 function normalizePhone(value) {
     return String(value ?? '').replace(/\D/g, '').slice(0, 11);
@@ -32,7 +33,28 @@ export function formatPhone(value) {
     return `(${digits.slice(0, 2)}) ${digits.slice(2, 7)}-${digits.slice(7)}`;
 }
 
-export function validateCheckoutDetails(details) {
+export function parseCurrencyToCents(value) {
+    if (typeof value !== 'string') {
+        return null;
+    }
+
+    const match = value.trim().match(/^(?:R\$\s*)?(\d+)(?:[,.](\d{0,2}))?$/i);
+
+    if (!match) {
+        return null;
+    }
+
+    const fraction = (match[2] ?? '').padEnd(2, '0');
+    const cents = BigInt(match[1]) * 100n + BigInt(fraction || '0');
+
+    if (cents > BigInt(Number.MAX_SAFE_INTEGER)) {
+        return null;
+    }
+
+    return Number(cents);
+}
+
+export function validateCheckoutDetails(details, productsTotal, deliveryFee) {
     const errors = {};
     const fulfillmentType = details?.fulfillmentType;
 
@@ -62,6 +84,31 @@ export function validateCheckoutDetails(details) {
         }
     }
 
+    const paymentMethod = details?.paymentMethod;
+
+    if (!VALID_PAYMENT_METHODS.has(paymentMethod)) {
+        errors.paymentMethod = 'Escolha uma forma de pagamento.';
+    } else if (paymentMethod === 'cash') {
+        if (typeof details?.needsChange !== 'boolean') {
+            errors.needsChange = 'Informe se precisa de troco.';
+        } else if (details.needsChange) {
+            const changeFor = parseCurrencyToCents(details.changeFor);
+
+            if (changeFor === null || changeFor <= 0) {
+                errors.changeFor = 'Informe um valor válido para o troco.';
+            } else {
+                const totals = getCheckoutTotals(fulfillmentType, productsTotal, deliveryFee);
+
+                if (changeFor < totals.total) {
+                    errors.changeFor = 'O valor para troco deve ser maior que o total do pedido.';
+                } else if (changeFor === totals.total) {
+                    errors.changeFor =
+                        'Esse valor é igual ao total. Nesse caso, não é necessário troco.';
+                }
+            }
+        }
+    }
+
     return {
         isValid: Object.keys(errors).length === 0,
         errors,
@@ -86,13 +133,16 @@ export function getCheckoutTotals(fulfillmentType, productsTotal, deliveryFee) {
 }
 
 export function buildCheckoutDetails(details, productsTotal, deliveryFee) {
-    const validation = validateCheckoutDetails(details);
+    const validation = validateCheckoutDetails(details, productsTotal, deliveryFee);
 
     if (!validation.isValid) {
         throw new TypeError('Os dados do checkout estão incompletos.');
     }
 
     const totals = getCheckoutTotals(details.fulfillmentType, productsTotal, deliveryFee);
+    const needsChange = details.paymentMethod === 'cash' && details.needsChange === true;
+    const changeFor = needsChange ? parseCurrencyToCents(details.changeFor) : null;
+    const changeAmount = needsChange ? changeFor - totals.total : 0;
 
     return {
         fulfillmentType: details.fulfillmentType,
@@ -112,5 +162,11 @@ export function buildCheckoutDetails(details, productsTotal, deliveryFee) {
         productsTotal,
         deliveryFee: totals.deliveryFee,
         total: totals.total,
+        payment: {
+            method: details.paymentMethod,
+            needsChange,
+            changeFor,
+            changeAmount,
+        },
     };
 }

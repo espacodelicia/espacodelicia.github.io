@@ -59,6 +59,9 @@ const checkoutDeliveryFee = document.querySelector('#checkout-delivery-fee');
 const checkoutTotal = document.querySelector('#checkout-total');
 const checkoutContinueButton = document.querySelector('#checkout-continue');
 const checkoutStatus = document.querySelector('#checkout-status');
+const checkoutPaymentGroup = document.querySelector('#checkout-payment-group');
+const checkoutChangeChoice = document.querySelector('#checkout-change-choice');
+const checkoutChangeField = document.querySelector('#checkout-change-field');
 
 const checkoutInputs = {
     fullName: document.querySelector('#checkout-full-name'),
@@ -67,6 +70,7 @@ const checkoutInputs = {
     number: document.querySelector('#checkout-number'),
     neighborhood: document.querySelector('#checkout-neighborhood'),
     complement: document.querySelector('#checkout-complement'),
+    changeFor: document.querySelector('#checkout-change-for'),
 };
 
 const checkoutErrorElements = {
@@ -76,6 +80,9 @@ const checkoutErrorElements = {
     street: document.querySelector('#checkout-street-error'),
     number: document.querySelector('#checkout-number-error'),
     neighborhood: document.querySelector('#checkout-neighborhood-error'),
+    paymentMethod: document.querySelector('#checkout-payment-error'),
+    needsChange: document.querySelector('#checkout-needs-change-error'),
+    changeFor: document.querySelector('#checkout-change-for-error'),
 };
 
 let cart = loadCart();
@@ -85,7 +92,7 @@ let menuScrollPosition = 0;
 let cartReturnFocus = null;
 let suppressCartFocusRestore = false;
 let checkoutHasBeenSubmitted = false;
-let validCheckoutDetails = null;
+let checkoutData = null;
 const checkoutState = {
     fulfillmentType: null,
     fullName: '',
@@ -94,6 +101,9 @@ const checkoutState = {
     number: '',
     neighborhood: '',
     complement: '',
+    paymentMethod: null,
+    needsChange: null,
+    changeFor: '',
 };
 
 function formatCurrency(cents) {
@@ -710,17 +720,35 @@ function updateCheckoutFulfillment() {
     renderCheckoutSummary();
 }
 
+function updateCheckoutPaymentFields() {
+    const isCash = checkoutState.paymentMethod === 'cash';
+    checkoutChangeChoice.hidden = !isCash;
+    checkoutChangeField.hidden = !isCash || checkoutState.needsChange !== true;
+}
+
 function renderCheckoutErrors(errors = {}) {
-    const fulfillmentGroup = document.querySelector('#checkout-fulfillment-group');
-    const fulfillmentInputs = checkoutForm.querySelectorAll('[name="fulfillment"]');
+    const groupFields = {
+        fulfillmentType: {
+            element: document.querySelector('#checkout-fulfillment-group'),
+            inputs: checkoutForm.querySelectorAll('[name="fulfillment"]'),
+        },
+        paymentMethod: {
+            element: checkoutPaymentGroup,
+            inputs: checkoutForm.querySelectorAll('[name="paymentMethod"]'),
+        },
+        needsChange: {
+            element: checkoutChangeChoice,
+            inputs: checkoutForm.querySelectorAll('[name="needsChange"]'),
+        },
+    };
 
     Object.entries(checkoutErrorElements).forEach(([field, element]) => {
         element.textContent = errors[field] ?? '';
 
-        if (field === 'fulfillmentType') {
+        if (groupFields[field]) {
             const isInvalid = Boolean(errors[field]);
-            fulfillmentGroup.setAttribute('aria-invalid', String(isInvalid));
-            fulfillmentInputs.forEach((input) =>
+            groupFields[field].element.setAttribute('aria-invalid', String(isInvalid));
+            groupFields[field].inputs.forEach((input) =>
                 input.setAttribute('aria-invalid', String(isInvalid)),
             );
             return;
@@ -731,13 +759,17 @@ function renderCheckoutErrors(errors = {}) {
 }
 
 function validateAndRenderCheckout() {
-    const validation = validateCheckoutDetails(checkoutState);
+    const validation = validateCheckoutDetails(
+        checkoutState,
+        getCartTotal(cart),
+        business.deliveryFee,
+    );
     renderCheckoutErrors(validation.errors);
     return validation;
 }
 
 function updateCheckoutAfterInput() {
-    validCheckoutDetails = null;
+    checkoutData = null;
     checkoutStatus.textContent = '';
 
     if (checkoutHasBeenSubmitted) {
@@ -750,15 +782,25 @@ function renderCheckout() {
         input.checked = input.value === checkoutState.fulfillmentType;
     });
 
+    checkoutForm.querySelectorAll('[name="paymentMethod"]').forEach((input) => {
+        input.checked = input.value === checkoutState.paymentMethod;
+    });
+
+    checkoutForm.querySelectorAll('[name="needsChange"]').forEach((input) => {
+        const needsChange = input.value === 'yes';
+        input.checked = needsChange === checkoutState.needsChange;
+    });
+
     Object.entries(checkoutInputs).forEach(([field, input]) => {
         input.value = checkoutState[field];
     });
 
     checkoutHasBeenSubmitted = false;
-    validCheckoutDetails = null;
+    checkoutData = null;
     checkoutStatus.textContent = '';
     renderCheckoutErrors();
     updateCheckoutFulfillment();
+    updateCheckoutPaymentFields();
     checkoutContinueButton.disabled = cart.length === 0;
 }
 
@@ -780,11 +822,31 @@ function closeCheckout() {
 }
 
 function focusFirstCheckoutError(errors) {
-    const order = ['fulfillmentType', 'fullName', 'phone', 'street', 'number', 'neighborhood'];
+    const order = [
+        'fulfillmentType',
+        'fullName',
+        'phone',
+        'street',
+        'number',
+        'neighborhood',
+        'paymentMethod',
+        'needsChange',
+        'changeFor',
+    ];
     const firstInvalidField = order.find((field) => errors[field]);
 
     if (firstInvalidField === 'fulfillmentType') {
         checkoutForm.querySelector('[name="fulfillment"]')?.focus();
+        return;
+    }
+
+    if (firstInvalidField === 'paymentMethod') {
+        checkoutForm.querySelector('[name="paymentMethod"]')?.focus();
+        return;
+    }
+
+    if (firstInvalidField === 'needsChange') {
+        checkoutForm.querySelector('[name="needsChange"]')?.focus();
         return;
     }
 
@@ -804,18 +866,18 @@ function handleCheckoutSubmit(event) {
     const validation = validateAndRenderCheckout();
 
     if (!validation.isValid) {
-        validCheckoutDetails = null;
+        checkoutData = null;
         checkoutStatus.textContent = '';
         focusFirstCheckoutError(validation.errors);
         return;
     }
 
-    validCheckoutDetails = buildCheckoutDetails(
+    checkoutData = buildCheckoutDetails(
         checkoutState,
         getCartTotal(cart),
         business.deliveryFee,
     );
-    checkoutStatus.textContent = 'Dados preenchidos corretamente.';
+    checkoutStatus.textContent = 'Dados do pedido preenchidos corretamente.';
 }
 
 function renderCartBar() {
@@ -1084,6 +1146,22 @@ checkoutForm.querySelectorAll('[name="fulfillment"]').forEach((input) => {
     input.addEventListener('change', () => {
         checkoutState.fulfillmentType = input.value;
         updateCheckoutFulfillment();
+        updateCheckoutAfterInput();
+    });
+});
+
+checkoutForm.querySelectorAll('[name="paymentMethod"]').forEach((input) => {
+    input.addEventListener('change', () => {
+        checkoutState.paymentMethod = input.value;
+        updateCheckoutPaymentFields();
+        updateCheckoutAfterInput();
+    });
+});
+
+checkoutForm.querySelectorAll('[name="needsChange"]').forEach((input) => {
+    input.addEventListener('change', () => {
+        checkoutState.needsChange = input.value === 'yes';
+        updateCheckoutPaymentFields();
         updateCheckoutAfterInput();
     });
 });

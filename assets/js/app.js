@@ -17,11 +17,13 @@ import {
     validateCheckoutDetails,
 } from './checkout.js';
 import { menu } from './menu.js';
+import { buildWhatsAppMessage, buildWhatsAppUrl } from './whatsapp.js';
 
 const currencyFormatter = new Intl.NumberFormat('pt-BR', {
     style: 'currency',
     currency: 'BRL',
 });
+const WHATSAPP_REENTRY_DELAY_MS = 500;
 
 const categoryList = document.querySelector('#category-list');
 const menuContent = document.querySelector('#menu-content');
@@ -66,6 +68,13 @@ const orderReviewDialog = document.querySelector('#order-review-dialog');
 const orderReviewContent = document.querySelector('#order-review-content');
 const orderReviewSummary = document.querySelector('#order-review-summary');
 const backToCheckoutButton = document.querySelector('#back-to-checkout');
+const continueToWhatsAppButton = document.querySelector('#continue-to-whatsapp');
+const orderReviewFooter = document.querySelector('.order-review-dialog__footer');
+const orderReviewStatus = document.createElement('p');
+orderReviewStatus.className = 'checkout-status';
+orderReviewStatus.setAttribute('role', 'status');
+orderReviewStatus.setAttribute('aria-live', 'polite');
+orderReviewFooter.prepend(orderReviewStatus);
 
 const checkoutInputs = {
     fullName: document.querySelector('#checkout-full-name'),
@@ -98,6 +107,9 @@ let suppressCartFocusRestore = false;
 let suppressCheckoutReturnToCart = false;
 let checkoutHasBeenSubmitted = false;
 let checkoutData = null;
+let isOpeningWhatsApp = false;
+let pendingCheckoutErrors = null;
+let pendingCheckoutStatus = '';
 const checkoutState = {
     fulfillmentType: null,
     fullName: '',
@@ -777,6 +789,10 @@ function updateCheckoutAfterInput() {
     checkoutData = null;
     checkoutStatus.textContent = '';
 
+    if (orderReviewDialog.open) {
+        continueToWhatsAppButton.disabled = true;
+    }
+
     if (checkoutHasBeenSubmitted) {
         validateAndRenderCheckout();
     }
@@ -1073,17 +1089,118 @@ function openOrderReview() {
         return;
     }
 
+    isOpeningWhatsApp = false;
+    orderReviewStatus.textContent = '';
+    continueToWhatsAppButton.disabled = true;
     renderOrderReview();
     suppressCheckoutReturnToCart = true;
     checkoutDialog.close();
     orderReviewDialog.showModal();
+    continueToWhatsAppButton.disabled = false;
     orderReviewContent.scrollTo({ top: 0, behavior: 'auto' });
     document.body.classList.add('dialog-open');
     backToCheckoutButton.focus();
 }
 
 function closeOrderReview() {
+    isOpeningWhatsApp = false;
+    continueToWhatsAppButton.disabled = true;
+    orderReviewStatus.textContent = '';
     orderReviewDialog.close();
+}
+
+function returnToCheckoutFromInvalidReview(errors = null, status = '') {
+    checkoutData = null;
+    pendingCheckoutErrors = errors;
+    pendingCheckoutStatus = status;
+    closeOrderReview();
+}
+
+function restoreWhatsAppAction() {
+    isOpeningWhatsApp = false;
+
+    if (orderReviewDialog.open && checkoutData) {
+        continueToWhatsAppButton.disabled = false;
+    }
+}
+
+function scheduleWhatsAppActionRestore() {
+    window.setTimeout(restoreWhatsAppAction, WHATSAPP_REENTRY_DELAY_MS);
+}
+
+function handleContinueToWhatsApp() {
+    if (isOpeningWhatsApp || continueToWhatsAppButton.disabled) {
+        return;
+    }
+
+    isOpeningWhatsApp = true;
+    continueToWhatsAppButton.disabled = true;
+    orderReviewStatus.textContent = '';
+
+    if (cart.length === 0) {
+        checkoutContinueButton.disabled = true;
+        returnToCheckoutFromInvalidReview(null, 'Seu carrinho está vazio.');
+        return;
+    }
+
+    try {
+        const validation = validateAndRenderCheckout();
+
+        if (!validation.isValid) {
+            returnToCheckoutFromInvalidReview(validation.errors);
+            return;
+        }
+
+        const currentCheckoutData = buildCheckoutDetails(
+            checkoutState,
+            getCartTotal(cart),
+            business.deliveryFee,
+        );
+        const message = buildWhatsAppMessage(cart, currentCheckoutData, business);
+        const url = buildWhatsAppUrl(business.whatsapp, message);
+
+        checkoutData = currentCheckoutData;
+        renderOrderReview();
+
+        let whatsappWindow;
+
+        try {
+            whatsappWindow = window.open(url, '_blank');
+        } catch {
+            orderReviewStatus.textContent =
+                'Não foi possível abrir o WhatsApp. Tente novamente.';
+            scheduleWhatsAppActionRestore();
+            return;
+        }
+
+        if (whatsappWindow === null) {
+            orderReviewStatus.textContent =
+                'Não foi possível abrir o WhatsApp. Tente novamente.';
+            scheduleWhatsAppActionRestore();
+            return;
+        }
+
+        try {
+            whatsappWindow.opener = null;
+        } catch {
+            try {
+                whatsappWindow.close();
+            } catch {
+                // The external window may deny access after it has opened.
+            }
+
+            orderReviewStatus.textContent =
+                'Não foi possível abrir o WhatsApp. Tente novamente.';
+            scheduleWhatsAppActionRestore();
+            return;
+        }
+
+        scheduleWhatsAppActionRestore();
+    } catch {
+        orderReviewStatus.textContent =
+            'Não foi possível preparar o pedido para o WhatsApp.';
+        scheduleWhatsAppActionRestore();
+    }
 }
 
 function handleCheckoutSubmit(event) {
@@ -1376,6 +1493,7 @@ startCheckoutButton.addEventListener('click', openCheckout);
 closeCheckoutButton.addEventListener('click', closeCheckout);
 checkoutForm.addEventListener('submit', handleCheckoutSubmit);
 backToCheckoutButton.addEventListener('click', closeOrderReview);
+continueToWhatsAppButton.addEventListener('click', handleContinueToWhatsApp);
 
 checkoutForm.querySelectorAll('[name="fulfillment"]').forEach((input) => {
     input.addEventListener('change', () => {
@@ -1518,7 +1636,19 @@ orderReviewDialog.addEventListener('keydown', (event) => {
 orderReviewDialog.addEventListener('close', () => {
     checkoutDialog.showModal();
     document.body.classList.add('dialog-open');
-    checkoutContinueButton.focus();
+
+    if (pendingCheckoutStatus) {
+        checkoutStatus.textContent = pendingCheckoutStatus;
+    }
+
+    if (pendingCheckoutErrors) {
+        focusFirstCheckoutError(pendingCheckoutErrors);
+    } else {
+        checkoutContinueButton.focus();
+    }
+
+    pendingCheckoutErrors = null;
+    pendingCheckoutStatus = '';
 });
 
 renderMenu();

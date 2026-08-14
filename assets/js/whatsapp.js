@@ -401,3 +401,17 @@ export function buildWhatsAppMessage(cart, checkoutData, business) {
     );
     return lines.join('\n');
 }
+
+export function buildWhatsAppUrl(whatsappNumber, message) {
+    if (typeof whatsappNumber !== 'string' || !/^\d{8,15}$/.test(whatsappNumber)) {
+        throw new TypeError(
+            'whatsappNumber must contain 8 to 15 digits in international format.',
+        );
+    }
+
+    if (typeof message !== 'string' || message.trim() === '') {
+        throw new TypeError('message must be a non-empty string.');
+    }
+
+    return `https://wa.me/${whatsappNumber}?text=${encodeURIComponent(message)}`;
+}

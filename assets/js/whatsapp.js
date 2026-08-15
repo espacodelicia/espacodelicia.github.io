@@ -316,14 +316,9 @@ function validateBusiness(business) {
 }
 
 function formatOrderItem(line) {
-    const lines = [
-        `${line.quantity}x ${line.productName}`,
-        `Unitário: ${formatCurrency(line.unitPrice)}`,
-        `Subtotal: ${formatCurrency(line.unitPrice * line.quantity)}`,
-    ];
+    const lines = [`${line.quantity}x ${line.productName}`];
 
     if (line.addons.length > 0) {
-        lines.push('Adicionais:');
         line.addons.forEach((addon) => lines.push(`+ ${addon.name} x${addon.quantity}`));
     }
 
@@ -331,6 +326,7 @@ function formatOrderItem(line) {
         lines.push(`Obs.: ${line.notes}`);
     }
 
+    lines.push('', `Subtotal: ${formatCurrency(line.unitPrice * line.quantity)}`);
     return lines;
 }
 

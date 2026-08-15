@@ -271,7 +271,7 @@ export const menu = [
                 id: 'bolo-no-pote',
                 name: 'Bolo no Pote',
                 description: 'Consultar sabores disponíveis pelo WhatsApp',
-                price: 1200,
+                price: 1000,
                 image: 'assets/images/products/bolo-no-pote.webp',
             },
         ],

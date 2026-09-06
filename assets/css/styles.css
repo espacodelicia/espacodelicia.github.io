@@ -95,9 +95,34 @@ button:focus-visible {
     line-height: 1.05;
 }
 
+.business-status {
+    display: inline-flex;
+    align-items: center;
+    min-height: 26px;
+    margin: 7px 0 0;
+    padding: 2px 10px;
+    border: 1px solid currentColor;
+    border-radius: 999px;
+    font-size: 0.8rem;
+    font-weight: 750;
+    line-height: 1.2;
+}
+
+.business-status:empty {
+    display: none;
+}
+
+.business-status--open {
+    color: #a9efb5;
+}
+
+.business-status--closed {
+    color: #ffb4ab;
+}
+
 .info-button {
     min-height: 44px;
-    margin-top: 13px;
+    margin-top: 7px;
     padding: 8px 0;
     color: var(--color-beige);
     background: transparent;

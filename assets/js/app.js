@@ -1,4 +1,4 @@
-import { business } from './business.js';
+import { business, isBusinessOpen } from './business.js';
 import {
     addCartItem,
     clearCartStorage,
@@ -29,6 +29,7 @@ const WHATSAPP_REENTRY_DELAY_MS = 500;
 const categoryList = document.querySelector('#category-list');
 const menuContent = document.querySelector('#menu-content');
 const businessName = document.querySelector('#business-name');
+const businessStatus = document.querySelector('#business-status');
 const businessDialog = document.querySelector('#business-info');
 const businessInfoTitle = document.querySelector('#business-info-title');
 const businessInfoContent = document.querySelector('#business-info-content');
@@ -288,6 +289,17 @@ function renderBusinessInfo() {
     schedule.append(scheduleTitle, scheduleList);
     details.append(phoneGroup, addressGroup, schedule);
     businessInfoContent.append(details);
+}
+
+function renderBusinessStatus() {
+    const isOpen = isBusinessOpen(new Date(), business);
+    const statusText = isOpen ? 'Aberto' : 'Fechado';
+
+    businessStatus.textContent = statusText;
+    businessStatus.setAttribute('aria-label', `Status de funcionamento: ${statusText}`);
+    businessStatus.classList.add(
+        isOpen ? 'business-status--open' : 'business-status--closed',
+    );
 }
 
 function createBusinessDetail(label, value) {
@@ -1824,5 +1836,6 @@ orderReviewDialog.addEventListener('close', () => {
 
 renderMenu();
 renderBusinessInfo();
+renderBusinessStatus();
 observeMenuSections();
 renderCartBar();

@@ -14,3 +14,52 @@ export const business = {
     ],
     deliveryFee: 0,
 };
+
+const businessDateTimeFormatter = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'America/Sao_Paulo',
+    weekday: 'short',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hourCycle: 'h23',
+});
+
+const businessDayIndexes = {
+    Mon: 0,
+    Tue: 1,
+    Wed: 2,
+    Thu: 3,
+    Fri: 4,
+    Sat: 5,
+    Sun: 6,
+};
+
+export function isBusinessOpen(date, businessData = business) {
+    if (!(date instanceof Date) || !Number.isFinite(date.getTime())) {
+        return false;
+    }
+
+    const dateTimeParts = Object.fromEntries(
+        businessDateTimeFormatter.formatToParts(date).map(({ type, value }) => [type, value]),
+    );
+    const businessHours = businessData.openingHours[businessDayIndexes[dateTimeParts.weekday]]?.hours;
+
+    if (businessHours === 'Fechado') {
+        return false;
+    }
+
+    const hoursMatch = /^(\d{2}):(\d{2}) às (\d{2}):(\d{2})$/.exec(businessHours ?? '');
+
+    if (!hoursMatch) {
+        return false;
+    }
+
+    const currentTimeInSeconds =
+        Number(dateTimeParts.hour) * 3600 +
+        Number(dateTimeParts.minute) * 60 +
+        Number(dateTimeParts.second);
+    const openingTimeInSeconds = Number(hoursMatch[1]) * 3600 + Number(hoursMatch[2]) * 60;
+    const closingTimeInSeconds = Number(hoursMatch[3]) * 3600 + Number(hoursMatch[4]) * 60;
+
+    return currentTimeInSeconds >= openingTimeInSeconds && currentTimeInSeconds < closingTimeInSeconds;
+}

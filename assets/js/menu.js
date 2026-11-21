@@ -34,6 +34,30 @@ export const menu = [
                 price: 3000,
                 image: 'assets/images/products/x-delicia.webp',
             },
+            {
+                id: 'x-bacon',
+                name: 'X-Bacon',
+                description:
+                    'Pão de brioche, hambúrguer, mussarela, cheddar, bacon, alface, tomate, cebola roxa e molho especial',
+                price: 2800,
+                image: 'assets/images/products/x-salada.webp',
+            },
+            {
+                id: 'x-calabresa',
+                name: 'X-Calabresa',
+                description:
+                    'Pão de brioche, hambúrguer, mussarela, cheddar, calabresa, alface, tomate, cebola roxa e molho especial',
+                price: 2800,
+                image: 'assets/images/products/x-salada.webp',
+            },
+            {
+                id: 'x-tudo',
+                name: 'X-Tudo',
+                description:
+                    'Pão de brioche, hambúrguer, mussarela, cheddar, requeijão, ovo, bacon, calabresa, alface, tomate, cebola roxa e molho especial',
+                price: 3500,
+                image: 'assets/images/products/x-delicia.webp',
+            },
         ],
     },
     {

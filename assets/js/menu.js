@@ -236,6 +236,34 @@ export const menu = [
         ],
     },
     {
+        id: 'salgados',
+        name: 'Salgados',
+        addons: [],
+        products: [
+            {
+                id: 'salgado',
+                name: 'Salgado',
+                description: 'Consultar opções disponíveis pelo WhatsApp',
+                price: 800,
+                image: 'assets/images/products/imagem-generica.webp',
+            },
+            {
+                id: 'sanduiche-natural',
+                name: 'Sanduíche Natural',
+                description: 'Consultar opções disponíveis pelo WhatsApp',
+                price: 800,
+                image: 'assets/images/products/imagem-generica.webp',
+            },
+            {
+                id: 'espetinho',
+                name: 'Espetinho',
+                description: 'Consultar opções disponíveis pelo WhatsApp',
+                price: 1000,
+                image: 'assets/images/products/imagem-generica.webp',
+            },
+        ],
+    },
+    {
         id: 'churros',
         name: 'Churros',
         addons: [],

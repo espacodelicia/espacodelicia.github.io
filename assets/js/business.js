@@ -10,7 +10,7 @@ export const business = {
         { day: 'Quinta-feira', hours: '14:00 às 20:00' },
         { day: 'Sexta-feira', hours: '14:00 às 21:00' },
         { day: 'Sábado', hours: '11:00 às 21:00' },
-        { day: 'Domingo', hours: '11:00 às 18:00' },
+        { day: 'Domingo', hours: '14:00 às 18:00' },
     ],
     deliveryFee: 0,
 };
